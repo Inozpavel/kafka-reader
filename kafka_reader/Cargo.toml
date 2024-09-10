@@ -1,0 +1,18 @@
+[package]
+name = "kafka_reader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prost = "0.13.2"
+bytes = "1.7.1"
+protobuf = { version = "3.5.1" }
+protobuf-json-mapping = "3.5.1"
+anyhow = "1.0.87"
+tonic-build = "0.12.2"
+tempfile = "3.12.0"
+tokio = { version = "1.40.0", features = ["rt-multi-thread", "fs", "macros", "rt"] }
+proto_bytes_to_json_string_converter = { path = "../proto_bytes_to_json_string_converter" }
+
+[build-dependencies]
+tonic-build = "0.12.2"
