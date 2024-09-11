@@ -1,0 +1,17 @@
+[package]
+name = "kafka_reader_api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros", "sync"] }
+anyhow = "1.0.88"
+tokio-stream = "0.1.16"
+tonic = { version = "0.12.2" }
+prost = "0.13.2"
+kafka_reader = { path = "../kafka_reader" }
+
+[build-dependencies]
+tonic-build = "0.12.2"

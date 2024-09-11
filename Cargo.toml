@@ -1,5 +1,5 @@
 [workspace]
-members = ["kafka_reader", "proto_bytes_to_json_string_converter"]
+members = ["kafka_reader", "kafka_reader_api", "proto_bytes_to_json_string_converter"]
 resolver = "2"
 
 

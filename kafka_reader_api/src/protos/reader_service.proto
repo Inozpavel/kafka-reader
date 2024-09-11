@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+
+option csharp_namespace = "Kafka.Reader.Api";
+option go_package = "kafka_reader_api";
+
+package kafka_reader_api;
+
+service KafkaReader {
+  rpc ReadMessages(ReadMessages.Request) returns (stream ReadMessages.Response);
+}
+
+message ReadMessages {
+  message Request {
+    repeated string brokers = 1;
+    string topic = 2;
+    MessageFormat format = 3;
+  }
+  message MessageFormat {
+    oneof format {
+      String string_format = 1;
+      Hex hex_format = 2;
+      Protobuf protobuf_format = 3;
+    }
+    message String {}
+    message Hex {}
+    message Protobuf {
+      oneof decode_way {
+        RawProtoFile raw_proto_file = 1;
+      }
+    }
+    message RawProtoFile{
+      string proto = 1;
+    }
+  }
+
+  message Response {
+    optional KafkaMessage kafka_message = 1;
+  }
+  message KafkaMessage{
+    google.protobuf.StringValue key = 1;
+    google.protobuf.StringValue body = 2;
+    map<string, string> headers = 3;
+  }
+}

@@ -36,7 +36,8 @@ impl<T: AsRef<Path>> ProtoDescriptorPreparer<T> {
         let file = self.created_file.as_ref().unwrap();
         tonic_build::configure()
             .file_descriptor_set_path(file.path())
-            .compile(&[&self.proto_path], &self.includes)?;
+            .compile(&[&self.proto_path], &self.includes)
+            .context("While building descriptor set")?;
 
         let descriptor_set_bytes = tokio::fs::read(file.path())
             .await
@@ -50,7 +51,8 @@ impl<T: AsRef<Path>> ProtoDescriptorPreparer<T> {
     }
 
     fn parse_descriptor(descriptor_bytes: &[u8]) -> Result<FileDescriptorProto, anyhow::Error> {
-        let descriptor = FileDescriptorSet::parse_from_bytes(descriptor_bytes)?;
+        let descriptor = FileDescriptorSet::parse_from_bytes(descriptor_bytes)
+            .context("While parsing generated descriptor")?;
 
         let FileDescriptorSet { file, .. } = descriptor;
 
