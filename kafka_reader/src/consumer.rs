@@ -1,11 +1,13 @@
 use crate::format::{Format, ProtoConvertData};
 use crate::message::KafkaMessage;
 use anyhow::{bail, Context};
+use bytes::Bytes;
 use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorPreparer};
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::{ClientConfig, Message};
 use tokio::sync::mpsc::Receiver;
 use tracing::error;
+use uuid::Uuid;
 
 pub async fn read_messages_to_channel(
     brokers: Vec<String>,
@@ -57,7 +59,10 @@ pub async fn read_messages_to_channel(
                                 headers: None,
                             };
 
-                            tx.send(Some(message)).await.unwrap();
+                            if let Err(e) = tx.send(Some(message)).await {
+                                println!("Error while sending message to channel: {:?}", e);
+                                break;
+                            }
                             consumer.store_offset_from_message(&msg);
                         }
                         Err(e) => error!("Error on converting bytes to json string: {:?}", e),
@@ -77,7 +82,7 @@ async fn bytes_to_string(
 ) -> Result<String, anyhow::Error> {
     let converted = match format {
         Format::String => Ok(String::from_utf8_lossy(bytes).to_string()),
-        Format::Hex => Ok(format!("{:X?}", bytes)),
+        Format::Hex => Ok(format!("{:x?}", bytes)),
         Format::Protobuf(ref convert) => match convert {
             ProtoConvertData::RawProto(proto_file) => {
                 if preparer.is_none() {
@@ -89,7 +94,7 @@ async fn bytes_to_string(
             }
         },
     }
-    .context("While converting body")?;
+        .context("While converting body")?;
 
     Ok(converted)
 }
@@ -97,7 +102,8 @@ async fn bytes_to_string(
 fn create_consumer(brokers: String) -> Result<StreamConsumer, anyhow::Error> {
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", brokers)
-        .set("group.id", "1")
+        .set("auto.offset.reset", "earliest")
+        .set("group.id", Uuid::now_v7().to_string())
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "10000")
         .set("enable.auto.commit", "false")

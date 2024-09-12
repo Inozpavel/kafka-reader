@@ -1,5 +1,3 @@
-mod startup;
-
 use kafka_reader_api::startup::run_until_stopped;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
