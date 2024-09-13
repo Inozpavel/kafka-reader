@@ -1,7 +1,8 @@
-use crate::format::{Format, ProtoConvertData, StartFrom};
 use crate::message::KafkaMessage;
+use crate::message_metadata::MessageMetadata;
+use crate::read_messages_request::ReadMessagesRequest;
+use crate::read_messages_request::{Format, ProtoConvertData, StartFrom};
 use anyhow::{bail, Context};
-use bytes::Bytes;
 use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorPreparer};
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::{ClientConfig, Message};
@@ -10,15 +11,15 @@ use tracing::error;
 use uuid::Uuid;
 
 pub async fn read_messages_to_channel(
-    brokers: Vec<String>,
-    topic: String,
-    format: Format,
-    start_from: StartFrom,
+    request: ReadMessagesRequest,
 ) -> Result<Receiver<Option<KafkaMessage>>, anyhow::Error> {
-    if brokers.is_empty() {
+    if request.brokers.is_empty() {
         bail!("No brokers specified")
     }
-    let consumer = create_consumer(&brokers, start_from).context("While creating consumer")?;
+    let consumer = create_consumer(&request.brokers, &request.start_from)
+        .context("While creating consumer")?;
+    let topic = request.topic.clone();
+
     consumer
         .subscribe(&[&topic])
         .context("While subscribing to topic")?;
@@ -27,52 +28,60 @@ pub async fn read_messages_to_channel(
     let (tx, rx) = tokio::sync::mpsc::channel::<Option<KafkaMessage>>(128);
     tokio::task::spawn(async move {
         loop {
-            match consumer.recv().await {
-                Err(e) => {
-                    error!("Kafka error: {}", e);
-                }
-                Ok(msg) => {
-                    let Some(bytes) = msg.payload_view::<[u8]>() else {
-                        if let Err(e) = tx
-                            .send(None)
-                            .await
-                            .context("While sending None message to channel")
-                        {
-                            error!("While sending None message to channel: {}", e);
-                        };
+            let message_result = read_message(&consumer, &request.format, &mut preparer).await;
 
+            match message_result {
+                Ok(message) => {
+                    let metadata = MessageMetadata::from(&message);
+                    if let Err(e) = tx.send(message).await {
+                        println!("Error while sending message to channel. Topic {}, metadata: {:?}. {:?}", topic, metadata, e);
                         break;
-                    };
-
-                    let Ok(bytes) = bytes else {
-                        error!("Error viewing kafka message bytes {:?}", bytes.unwrap_err());
-                        continue;
-                    };
-
-                    let body_result = bytes_to_string(bytes, &format, &mut preparer).await;
-
-                    match body_result {
-                        Ok(body) => {
-                            let message = KafkaMessage {
-                                key: None,
-                                body: Some(body),
-                                headers: None,
-                            };
-
-                            if let Err(e) = tx.send(Some(message)).await {
-                                println!("Error while sending message to channel: {:?}", e);
-                                break;
-                            }
-                            consumer.store_offset_from_message(&msg);
-                        }
-                        Err(e) => error!("Error on converting bytes to json string: {:?}", e),
                     }
+
+                    if let Err(e) =
+                        consumer.store_offset(&topic, *metadata.partition(), *metadata.offset())
+                    {
+                        error!("Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}. ",  topic, metadata, e);
+                    }
+                }
+                Err(e) => {
+                    error!("Error while reading message from kafka consumer: {:?}", e);
                 }
             }
         }
     });
 
     Ok(rx)
+}
+
+async fn read_message(
+    consumer: &StreamConsumer,
+    format: &Format,
+    preparer: &mut Option<ProtoDescriptorPreparer<&str>>,
+) -> Result<Option<KafkaMessage>, anyhow::Error> {
+    let msg = consumer.recv().await?;
+    let Some(bytes) = msg.payload_view::<[u8]>() else {
+        return Ok(None);
+    };
+
+    let Ok(bytes) = bytes else {
+        error!("Error viewing kafka message bytes {:?}", bytes.unwrap_err());
+        return Ok(None);
+    };
+
+    let body = bytes_to_string(bytes, &format, preparer)
+        .await
+        .context("While converting bytes to json string")?;
+
+    let message = KafkaMessage {
+        partition: msg.partition(),
+        offset: msg.offset(),
+        key: None,
+        body: Some(body),
+        headers: None,
+    };
+
+    Ok(Some(message))
 }
 
 async fn bytes_to_string(
@@ -94,15 +103,18 @@ async fn bytes_to_string(
             }
         },
     }
-        .context("While converting body")?;
+    .context("While converting body")?;
 
     Ok(converted)
 }
 
-fn create_consumer(brokers: &[String], start_from: StartFrom) -> Result<StreamConsumer, anyhow::Error> {
+fn create_consumer(
+    brokers: &[String],
+    start_from: &StartFrom,
+) -> Result<StreamConsumer, anyhow::Error> {
     let offset_reset = match start_from {
         StartFrom::Beginning | StartFrom::Today => "earliest",
-        StartFrom::Latest => "latest"
+        StartFrom::Latest => "latest",
     };
     let brokers_string = brokers.join(",");
 

@@ -9,6 +9,9 @@ anyhow = "1.0.87"
 tempfile = "3.12.0"
 tracing = "0.1.40"
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "fs", "macros", "rt"] }
-proto_bytes_to_json_string_converter = { path = "../proto_bytes_to_json_string_converter" }
 rdkafka = "0.36.2"
 uuid = { version = "1.10.0", features = ["v4"] }
+getset = "0.1.3"
+chrono = "0.4.38"
+
+proto_bytes_to_json_string_converter = { path = "../proto_bytes_to_json_string_converter" }

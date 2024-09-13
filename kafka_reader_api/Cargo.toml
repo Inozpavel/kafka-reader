@@ -14,6 +14,7 @@ prost = { version = "0.13.2" }
 prost-types = { version = "0.13.2" }
 tonic-reflection = "0.12.2"
 uuid = { version = "1.10.0", features = ["v7"] }
+
 kafka_reader = { path = "../kafka_reader" }
 
 [build-dependencies]

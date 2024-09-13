@@ -1,15 +1,11 @@
+#[derive(Debug)]
 pub enum Format {
     String,
     Hex,
     Protobuf(ProtoConvertData),
 }
 
-pub enum StartFrom {
-    Beginning,
-    Latest,
-    Today,
-}
-
+#[derive(Debug)]
 pub enum ProtoConvertData {
     RawProto(String),
 }

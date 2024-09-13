@@ -10,7 +10,11 @@ async fn main() -> Result<(), anyhow::Error> {
         .with(
             EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
+                .parse_lossy(
+                    std::env::var("RUST_LOG")
+                        .unwrap_or("info,proto_experiments=debug".to_owned())
+                        .as_str(),
+                ),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();

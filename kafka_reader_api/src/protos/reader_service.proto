@@ -18,7 +18,7 @@ message ReadMessages {
     string topic = 2;
     MessageFormat format = 3;
     StartFrom start_from = 4;
-    google.protobuf.UInt64Value limit = 5;
+    ReadLimit limit = 5;
   }
   message MessageFormat {
     oneof format {
