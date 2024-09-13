@@ -12,4 +12,5 @@ pub struct ReadMessagesRequest {
     pub topic: String,
     pub format: Format,
     pub start_from: StartFrom,
+    pub limit: ReadLimit,
 }

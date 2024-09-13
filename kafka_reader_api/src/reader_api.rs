@@ -1,11 +1,16 @@
 use crate::reader_api::proto::read_messages::message_format::proto_format::DecodeWay;
 use crate::reader_api::proto::read_messages::message_format::StringFormat;
+use crate::reader_api::proto::read_messages::read_limit::{
+    Limit as ProtoReadLimitVariant, NoLimit,
+};
 use crate::reader_api::proto::read_messages::start_from::FromBeginning;
+use crate::reader_api::proto::read_messages::ReadLimit as ProtoReadLimit;
 use anyhow::anyhow;
+use chrono::DateTime;
 use kafka_reader::consumer::read_messages_to_channel;
 use kafka_reader::message::KafkaMessage;
-use kafka_reader::read_messages_request::ReadMessagesRequest;
 use kafka_reader::read_messages_request::{Format, ProtoConvertData, StartFrom};
+use kafka_reader::read_messages_request::{ReadLimit, ReadMessagesRequest};
 use proto::read_messages::message_format::Format as ProtoMessageFormatVariant;
 use proto::read_messages::start_from::From as ProtoStartFromVariant;
 use proto::read_messages::MessageFormat as ProtoMessageFormat;
@@ -41,12 +46,15 @@ impl proto::kafka_reader_server::KafkaReader for ReaderService {
             .map_err(|e| Status::invalid_argument(format!("{e:?}")))?;
         let start_from = proto_start_from_to_from(request.start_from)
             .map_err(|e| Status::invalid_argument(format!("{e:?}")))?;
+        let limit = proto_limit_to_limit(request.limit)
+            .map_err(|e| Status::invalid_argument(format!("{e:?}")))?;
 
         let read_request = ReadMessagesRequest {
             topic: request.topic,
+            brokers: request.brokers,
             format,
             start_from,
-            brokers: request.brokers,
+            limit,
         };
         debug!("Mapped request: {:?}", read_request);
 
@@ -100,6 +108,26 @@ fn proto_start_from_to_from(
 
     Ok(from)
 }
+
+fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyhow::Error> {
+    let proto_limit = limit
+        .and_then(|x| x.limit)
+        .unwrap_or(ProtoReadLimitVariant::NoLimit(NoLimit {}));
+
+    let limit = match proto_limit {
+        ProtoReadLimitVariant::NoLimit(_) => ReadLimit::NoLimit,
+        ProtoReadLimitVariant::MessageCount(c) => ReadLimit::MessageCount(c.count),
+        ProtoReadLimitVariant::ToDate(d) => {
+            let proto_to_date = d.date.ok_or(anyhow!("To date limit can't be null"))?;
+            let date = DateTime::from_timestamp(proto_to_date.seconds, proto_to_date.nanos as u32)
+                .ok_or(anyhow!("Can't convert datetime"))?;
+            ReadLimit::ToDate(date)
+        }
+    };
+
+    Ok(limit)
+}
+
 fn map_to_response(
     message: Option<KafkaMessage>,
 ) -> Result<proto::read_messages::Response, Status> {

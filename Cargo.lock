@@ -696,6 +696,7 @@ name = "kafka_reader_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "config",
  "kafka_reader",
  "prost",

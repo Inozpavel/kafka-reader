@@ -16,6 +16,7 @@ tonic-reflection = "0.12.2"
 uuid = { version = "1.10.0", features = ["v7"] }
 config = "0.14.0"
 serde = { version = "1.0.210", features = ["derive"] }
+chrono = "0.4.38"
 
 kafka_reader = { path = "../kafka_reader" }
 

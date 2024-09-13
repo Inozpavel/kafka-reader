@@ -49,9 +49,11 @@ message ReadMessages {
   }
   message ReadLimit {
     oneof limit {
-      MessageCount message_count = 1;
-      ToDate to_date = 2;
+      NoLimit no_limit = 1;
+      MessageCount message_count = 2;
+      ToDate to_date = 3;
     }
+    message NoLimit {}
     message MessageCount {
       uint64 count = 1;
     }
