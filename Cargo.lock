@@ -473,6 +473,7 @@ dependencies = [
  "anyhow",
  "kafka_reader",
  "prost",
+ "prost-types",
  "tokio",
  "tokio-stream",
  "tonic",

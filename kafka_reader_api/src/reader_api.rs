@@ -1,14 +1,18 @@
 use anyhow::{anyhow};
 use kafka_reader::consumer::read_messages_to_channel;
-use kafka_reader::format::{Format, ProtoConvertData};
+use kafka_reader::format::{Format, ProtoConvertData, StartFrom};
 use kafka_reader::message::KafkaMessage;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Code, Request, Response, Status};
 
-use crate::reader_api::proto::read_messages::message_format::protobuf::DecodeWay;
-use crate::reader_api::proto::read_messages::MessageFormat;
-use proto::read_messages::message_format::Format as ProtoFormat;
+use proto::read_messages::MessageFormat as ProtoMessageFormat;
+use proto::read_messages::message_format::Format as ProtoMessageFormatVariant;
+use proto::read_messages::StartFrom as ProtoStartFrom;
+use proto::read_messages::start_from::From as ProtoStartFromVariant;
+use crate::reader_api::proto::read_messages::message_format::proto_format::DecodeWay;
+use crate::reader_api::proto::read_messages::message_format::StringFormat;
+use crate::reader_api::proto::read_messages::start_from::FromBeginning;
 
 pub mod proto {
     tonic::include_proto!("kafka_reader_api");
@@ -29,11 +33,14 @@ impl proto::kafka_reader_server::KafkaReader for ReaderService {
         request: Request<proto::read_messages::Request>,
     ) -> Result<Response<Self::ReadMessagesStream>, Status> {
         let request = request.into_inner();
+
         let format = proto_format_to_format(request.format)
+            .map_err(|e| Status::invalid_argument(format!("{e:?}")))?;
+        let start_from = proto_start_from_to_from(request.start_from)
             .map_err(|e| Status::invalid_argument(format!("{e:?}")))?;
 
         let create_consumer_result =
-            read_messages_to_channel(request.brokers, request.topic, format).await;
+            read_messages_to_channel(request.brokers, request.topic, format, start_from).await;
 
         match create_consumer_result {
             Ok(rx) => {
@@ -45,22 +52,40 @@ impl proto::kafka_reader_server::KafkaReader for ReaderService {
     }
 }
 
-fn proto_format_to_format(message_format: Option<MessageFormat>) -> Result<Format, anyhow::Error> {
-    match message_format
+fn proto_format_to_format(message_format: Option<ProtoMessageFormat>) -> Result<Format, anyhow::Error> {
+    let proto_format = message_format
         .and_then(|x| x.format)
-        .unwrap_or(ProtoFormat::StringFormat(Default::default()))
+        .unwrap_or(ProtoMessageFormatVariant::StringFormat(StringFormat {}));
+
+    let format = match proto_format
     {
-        ProtoFormat::StringFormat(_) => Ok(Format::String),
-        ProtoFormat::HexFormat(_) => Ok(Format::Hex),
-        ProtoFormat::ProtobufFormat(protobuf_data) => match protobuf_data
+        ProtoMessageFormatVariant::StringFormat(_) => Format::String,
+        ProtoMessageFormatVariant::HexFormat(_) => Format::Hex,
+        ProtoMessageFormatVariant::ProtoFormat(protobuf_data) => match protobuf_data
             .decode_way
             .ok_or(anyhow!("Protobuf format can't be none"))?
         {
             DecodeWay::RawProtoFile(file) => {
-                Ok(Format::Protobuf(ProtoConvertData::RawProto(file.proto)))
+                Format::Protobuf(ProtoConvertData::RawProto(file.proto))
             }
-        },
-    }
+        }
+    };
+
+    Ok(format)
+}
+
+fn proto_start_from_to_from(message_format: Option<ProtoStartFrom>) -> Result<StartFrom, anyhow::Error> {
+    let proto_from = message_format
+        .and_then(|x| x.from)
+        .unwrap_or(ProtoStartFromVariant::Beginning(FromBeginning {}));
+
+    let from = match proto_from {
+        ProtoStartFromVariant::Beginning(_) => StartFrom::Beginning,
+        ProtoStartFromVariant::Latest(_) => StartFrom::Latest,
+        ProtoStartFromVariant::Today(_) => StartFrom::Today,
+    };
+
+    Ok(from)
 }
 fn map_to_response(
     message: Option<KafkaMessage>,

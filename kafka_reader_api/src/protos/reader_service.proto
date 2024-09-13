@@ -1,5 +1,6 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
 option csharp_namespace = "Kafka.Reader.Api";
@@ -16,22 +17,46 @@ message ReadMessages {
     repeated string brokers = 1;
     string topic = 2;
     MessageFormat format = 3;
+    StartFrom start_from = 4;
+    google.protobuf.UInt64Value limit = 5;
   }
   message MessageFormat {
     oneof format {
-      String string_format = 1;
-      Hex hex_format = 2;
-      Protobuf protobuf_format = 3;
+      StringFormat string_format = 1;
+      HexFormat hex_format = 2;
+      ProtoFormat proto_format = 3;
     }
-    message String {}
-    message Hex {}
-    message Protobuf {
+    message StringFormat {}
+    message HexFormat {}
+    message ProtoFormat {
       oneof decode_way {
         RawProtoFile raw_proto_file = 1;
       }
     }
     message RawProtoFile{
       string proto = 1;
+    }
+  }
+  message StartFrom {
+    oneof from {
+      FromBeginning beginning = 1;
+      FromLatest latest = 2;
+      FromToday today = 3;
+    }
+    message FromBeginning {}
+    message FromLatest {}
+    message FromToday {}
+  }
+  message ReadLimit {
+    oneof limit {
+      MessageCount message_count = 1;
+      ToDate to_date = 2;
+    }
+    message MessageCount {
+      uint64 count = 1;
+    }
+    message ToDate {
+      google.protobuf.Timestamp date = 1;
     }
   }
 

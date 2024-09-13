@@ -4,6 +4,12 @@ pub enum Format {
     Protobuf(ProtoConvertData),
 }
 
+pub enum StartFrom {
+    Beginning,
+    Latest,
+    Today,
+}
+
 pub enum ProtoConvertData {
     RawProto(String),
 }

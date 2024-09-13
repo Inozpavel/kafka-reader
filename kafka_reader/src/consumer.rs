@@ -1,4 +1,4 @@
-use crate::format::{Format, ProtoConvertData};
+use crate::format::{Format, ProtoConvertData, StartFrom};
 use crate::message::KafkaMessage;
 use anyhow::{bail, Context};
 use bytes::Bytes;
@@ -13,12 +13,12 @@ pub async fn read_messages_to_channel(
     brokers: Vec<String>,
     topic: String,
     format: Format,
+    start_from: StartFrom,
 ) -> Result<Receiver<Option<KafkaMessage>>, anyhow::Error> {
     if brokers.is_empty() {
         bail!("No brokers specified")
     }
-    let brokers_string = brokers.join(",");
-    let consumer = create_consumer(brokers_string).context("While creating consumer")?;
+    let consumer = create_consumer(&brokers, start_from).context("While creating consumer")?;
     consumer
         .subscribe(&[&topic])
         .context("While subscribing to topic")?;
@@ -99,15 +99,22 @@ async fn bytes_to_string(
     Ok(converted)
 }
 
-fn create_consumer(brokers: String) -> Result<StreamConsumer, anyhow::Error> {
+fn create_consumer(brokers: &[String], start_from: StartFrom) -> Result<StreamConsumer, anyhow::Error> {
+    let offset_reset = match start_from {
+        StartFrom::Beginning | StartFrom::Today => "earliest",
+        StartFrom::Latest => "latest"
+    };
+    let brokers_string = brokers.join(",");
+
     let consumer: StreamConsumer = ClientConfig::new()
-        .set("bootstrap.servers", brokers)
-        .set("auto.offset.reset", "earliest")
+        .set("bootstrap.servers", brokers_string)
+        .set("auto.offset.reset", offset_reset)
         .set("group.id", Uuid::now_v7().to_string())
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "10000")
         .set("enable.auto.commit", "false")
         .create()
         .context("While creating a Kafka client config file")?;
+
     Ok(consumer)
 }
