@@ -1,3 +1,5 @@
+use anyhow::Context;
+use kafka_reader_api::app_config::AppConfig;
 use kafka_reader_api::startup::run_until_stopped;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -12,14 +14,15 @@ async fn main() -> Result<(), anyhow::Error> {
                 .with_default_directive(LevelFilter::INFO.into())
                 .parse_lossy(
                     std::env::var("RUST_LOG")
-                        .unwrap_or("info,proto_experiments=debug".to_owned())
+                        .unwrap_or("info,kafka_reader_api=debug,kafka_reader=debug,proto_bytes_to_json_string_converter=debug".to_owned())
                         .as_str(),
                 ),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    run_until_stopped().await?;
+    let config = AppConfig::build().context("While building app config")?;
+    run_until_stopped(config).await?;
 
     Ok(())
 }

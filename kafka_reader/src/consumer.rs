@@ -7,7 +7,7 @@ use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDesc
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::{ClientConfig, Message};
 use tokio::sync::mpsc::Receiver;
-use tracing::error;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 pub async fn read_messages_to_channel(
@@ -60,6 +60,8 @@ async fn read_message(
     preparer: &mut Option<ProtoDescriptorPreparer<&str>>,
 ) -> Result<Option<KafkaMessage>, anyhow::Error> {
     let msg = consumer.recv().await?;
+    debug!("New message");
+
     let Some(bytes) = msg.payload_view::<[u8]>() else {
         return Ok(None);
     };
@@ -68,7 +70,6 @@ async fn read_message(
         error!("Error viewing kafka message bytes {:?}", bytes.unwrap_err());
         return Ok(None);
     };
-
     let body = bytes_to_string(bytes, &format, preparer)
         .await
         .context("While converting bytes to json string")?;
