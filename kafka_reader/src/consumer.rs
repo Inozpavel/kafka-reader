@@ -1,3 +1,4 @@
+use crate::error::{ConsumeError, ConvertError};
 use crate::message::KafkaMessage;
 use crate::message_metadata::{MessageMetadata, PartitionOffset};
 use crate::read_messages_request::ReadMessagesRequest;
@@ -14,7 +15,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
-pub async fn read_messages_to_channel(
+pub async fn run_read_messages_to_channel(
     request: ReadMessagesRequest,
     cancellation_token: CancellationToken,
 ) -> Result<Receiver<Result<Option<KafkaMessage>, ConvertError>>, anyhow::Error> {
@@ -80,18 +81,6 @@ pub async fn read_messages_to_channel(
     Ok(rx)
 }
 
-#[derive(Debug)]
-enum ConsumeError {
-    RdKafkaError(anyhow::Error),
-    ConvertError(ConvertError),
-}
-
-#[derive(Debug)]
-pub struct ConvertError {
-    pub error: anyhow::Error,
-    pub partition_offset: PartitionOffset,
-}
-
 async fn read_message(
     consumer: &StreamConsumer,
     key_format: &Format,
@@ -103,12 +92,17 @@ async fn read_message(
         .await
         .context("While consuming message")
         .map_err(ConsumeError::RdKafkaError)?;
-    debug!("New message");
 
     let millis = msg.timestamp().to_millis().unwrap_or(0);
     let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::milliseconds(millis);
 
     let partition_offset = PartitionOffset::new(msg.partition(), msg.offset());
+
+    debug!(
+        "New message. Topic: '{}', {:?}. ",
+        msg.topic(),
+        partition_offset
+    );
 
     let key = message_part_to_string("key", msg.key_view::<[u8]>(), key_format, descriptor_holder)
         .await
@@ -212,7 +206,11 @@ fn create_consumer(
         .set("group.id", Uuid::now_v7().to_string())
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "10000")
-        .set("enable.auto.commit", "false")
+        .set("enable.auto.commit", "true")
+        .set("auto.commit.interval.ms", "4000")
+        .set("message.max.bytes", "1000000000")
+        .set("receive.message.max.bytes", "2147483647")
+        // .set("debug", "")
         .create()
         .context("While creating a Kafka client config file")?;
 

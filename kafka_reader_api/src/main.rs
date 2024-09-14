@@ -1,4 +1,5 @@
 #![warn(unused_imports)]
+
 use anyhow::Context;
 use kafka_reader_api::app_config::AppConfig;
 use kafka_reader_api::startup::run_until_stopped;
@@ -31,11 +32,11 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let config = AppConfig::build().context("While building app config")?;
+
     let shirt = snazzy::Shirt {
         size: 26123,
         color: "Red123".into(),
     };
-
     let mut serialized = BytesMut::new();
     prost::Message::encode(&shirt, &mut serialized)?;
     info!("Serialized: {:02X}", serialized);

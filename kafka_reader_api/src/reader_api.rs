@@ -8,7 +8,8 @@ use crate::reader_api::proto::read_messages::ReadLimit as ProtoReadLimit;
 use crate::util::StreamDataExtension;
 use anyhow::anyhow;
 use chrono::DateTime;
-use kafka_reader::consumer::{read_messages_to_channel, ConvertError};
+use kafka_reader::consumer::run_read_messages_to_channel;
+use kafka_reader::error::ConvertError;
 use kafka_reader::message::KafkaMessage;
 use kafka_reader::read_messages_request::{Format, ProtoConvertData, StartFrom};
 use kafka_reader::read_messages_request::{ReadLimit, ReadMessagesRequest};
@@ -64,7 +65,7 @@ impl proto::kafka_reader_server::KafkaReader for ReaderService {
         let guard = cancellation_token.clone().drop_guard();
 
         let create_consumer_result =
-            read_messages_to_channel(read_request, cancellation_token).await;
+            run_read_messages_to_channel(read_request, cancellation_token).await;
         match create_consumer_result {
             Ok(rx) => {
                 let map = ReceiverStream::new(rx).map(map_to_response);

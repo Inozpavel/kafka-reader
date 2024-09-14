@@ -1,4 +1,5 @@
 pub mod consumer;
+pub mod error;
 pub mod message;
-mod message_metadata;
+pub mod message_metadata;
 pub mod read_messages_request;
