@@ -7,7 +7,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .file_descriptor_set_path(out_dir.join("reader_service_descriptor.bin"))
         .build_client(false)
-        .compile(&["./src/protos/reader_service.proto"], includes)?;
+        .compile(
+            &[
+                "./src/protos/reader_service.proto",
+                "./src/protos/message.proto",
+            ],
+            includes,
+        )?;
 
     tonic_build::configure().compile(&["./src/protos/message.proto"], includes)?;
 

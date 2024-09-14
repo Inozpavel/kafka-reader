@@ -3,6 +3,7 @@ use crate::message_metadata::MessageMetadata;
 use crate::read_messages_request::ReadMessagesRequest;
 use crate::read_messages_request::{Format, ProtoConvertData, StartFrom};
 use anyhow::{bail, Context};
+use bytes::BytesMut;
 use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorPreparer};
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::{ClientConfig, Message};
@@ -106,7 +107,7 @@ async fn bytes_to_string(
 ) -> Result<String, anyhow::Error> {
     let converted = match format {
         Format::String => Ok(String::from_utf8_lossy(bytes).to_string()),
-        Format::Hex => Ok(format!("{:x?}", bytes)),
+        Format::Hex => Ok(format!("{:02X}", BytesMut::from(bytes))),
         Format::Protobuf(ref convert) => match convert {
             ProtoConvertData::RawProto(proto_file) => {
                 if preparer.is_none() {
