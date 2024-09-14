@@ -6,12 +6,15 @@ use anyhow::{bail, Context};
 use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorPreparer};
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::{ClientConfig, Message};
+use tokio::select;
 use tokio::sync::mpsc::Receiver;
-use tracing::{debug, error};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 pub async fn read_messages_to_channel(
     request: ReadMessagesRequest,
+    cancellation_token: CancellationToken,
 ) -> Result<Receiver<Option<KafkaMessage>>, anyhow::Error> {
     if request.brokers.is_empty() {
         bail!("No brokers specified")
@@ -28,13 +31,24 @@ pub async fn read_messages_to_channel(
     let (tx, rx) = tokio::sync::mpsc::channel::<Option<KafkaMessage>>(128);
     tokio::task::spawn(async move {
         loop {
-            let message_result = read_message(&consumer, &request.format, &mut preparer).await;
+            let message_result = select! {
+                msg = read_message(&consumer, &request.format, &mut preparer) => {
+                    msg
+                }
+                _ = cancellation_token.cancelled() => {
+                    info!("Consuming was cancelled");
+                    break
+                }
+            };
 
             match message_result {
                 Ok(message) => {
                     let metadata = MessageMetadata::from(&message);
                     if let Err(e) = tx.send(message).await {
-                        println!("Error while sending message to channel. Topic {}, metadata: {:?}. {:?}", topic, metadata, e);
+                        error!(
+                            "Error while sending message to channel. Topic {}, metadata: {:?}. :{}",
+                            topic, metadata, e
+                        );
                         break;
                     }
 

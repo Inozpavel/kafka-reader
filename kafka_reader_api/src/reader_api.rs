@@ -5,6 +5,7 @@ use crate::reader_api::proto::read_messages::read_limit::{
 };
 use crate::reader_api::proto::read_messages::start_from::FromBeginning;
 use crate::reader_api::proto::read_messages::ReadLimit as ProtoReadLimit;
+use crate::util::StreamDataExtension;
 use anyhow::anyhow;
 use chrono::DateTime;
 use kafka_reader::consumer::read_messages_to_channel;
@@ -17,6 +18,7 @@ use proto::read_messages::MessageFormat as ProtoMessageFormat;
 use proto::read_messages::StartFrom as ProtoStartFrom;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
+use tokio_util::sync::CancellationToken;
 use tonic::{Code, Request, Response, Status};
 use tracing::debug;
 
@@ -58,12 +60,15 @@ impl proto::kafka_reader_server::KafkaReader for ReaderService {
         };
         debug!("Mapped request: {:?}", read_request);
 
-        let create_consumer_result = read_messages_to_channel(read_request).await;
+        let cancellation_token = CancellationToken::new();
+        let guard = cancellation_token.clone().drop_guard();
 
+        let create_consumer_result =
+            read_messages_to_channel(read_request, cancellation_token).await;
         match create_consumer_result {
             Ok(rx) => {
                 let map = ReceiverStream::new(rx).map(map_to_response);
-                Ok(Response::new(Box::new(map)))
+                Ok(Response::new(Box::new(map.with_data(guard))))
             }
             Err(e) => Err(Status::new(Code::Internal, format!("{:?}", e))),
         }

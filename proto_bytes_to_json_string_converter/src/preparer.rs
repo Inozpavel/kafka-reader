@@ -74,7 +74,7 @@ impl<T: AsRef<Path>> Drop for ProtoDescriptorPreparer<T> {
     fn drop(&mut self) {
         if let Some(file) = &self.created_file {
             if let Err(e) = fs::remove_file(file.path()) {
-                eprint!(
+                eprintln!(
                     "Error while deleting temp file. Path {:?}. {:?}",
                     file.path(),
                     e
