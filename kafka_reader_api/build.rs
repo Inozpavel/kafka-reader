@@ -15,7 +15,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             includes,
         )?;
 
-    tonic_build::configure().compile(&["./src/protos/message.proto"], includes)?;
-
     Ok(())
 }

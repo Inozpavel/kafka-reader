@@ -1,3 +1,4 @@
+#![warn(unused_imports)]
 use anyhow::Context;
 use kafka_reader_api::app_config::AppConfig;
 use kafka_reader_api::startup::run_until_stopped;
@@ -22,7 +23,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 .with_default_directive(LevelFilter::INFO.into())
                 .parse_lossy(
                     std::env::var("RUST_LOG")
-                        .unwrap_or("info,kafka_reader_api=debug,kafka_reader=debug,proto_bytes_to_json_string_converter=debug".to_owned())
+                        .unwrap_or("info,kafka_reader_api=debug,kafka_reader=debug,proto_bytes_to_json_string_converter=debug,prost_build=trace".to_owned())
                         .as_str(),
                 ),
         )

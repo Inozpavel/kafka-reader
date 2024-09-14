@@ -2,11 +2,10 @@ use anyhow::{bail, Context};
 use protobuf::descriptor::{FileDescriptorProto, FileDescriptorSet};
 use protobuf::Message;
 use std::fs;
-use std::path::Path;
-use tempfile::NamedTempFile;
+use std::path::{Path, PathBuf};
 
 pub struct ProtoDescriptorPreparer<T: AsRef<Path>> {
-    created_file: Option<NamedTempFile>,
+    created_dir: Option<tempfile::TempDir>,
     proto_path: T,
     includes: Vec<T>,
     file_descriptor_set: Option<FileDescriptorProto>,
@@ -17,7 +16,7 @@ impl<T: AsRef<Path>> ProtoDescriptorPreparer<T> {
         Self {
             proto_path,
             includes,
-            created_file: None,
+            created_dir: None,
             file_descriptor_set: None,
         }
     }
@@ -30,16 +29,28 @@ impl<T: AsRef<Path>> ProtoDescriptorPreparer<T> {
         if self.file_descriptor_set.is_some() {
             return Ok(());
         }
-        let temp_file = NamedTempFile::new().context("While creating temp file")?;
-        self.created_file = Some(temp_file);
+        let descriptor_dir = tempfile::TempDir::new().context("While creating temp file")?;
+        let file_path = descriptor_dir.path().join("descriptor.bin");
 
-        let file = self.created_file.as_ref().unwrap();
+        self.created_dir = Some(descriptor_dir);
+
+        tokio::fs::File::create(&file_path)
+            .await
+            .context("While creating empty descriptor file")?;
+
         tonic_build::configure()
-            .file_descriptor_set_path(file.path())
-            .compile(&[&self.proto_path], &self.includes)
+            .file_descriptor_set_path(&file_path)
+            .protoc_arg("-I")
+            .protoc_arg("/")
+            .build_client(false)
+            .build_server(false)
+            .compile(
+                &[&self.proto_path.as_ref()],
+                Vec::<PathBuf>::new().as_slice(),
+            )
             .context("While building descriptor set")?;
 
-        let descriptor_set_bytes = tokio::fs::read(file.path())
+        let descriptor_set_bytes = tokio::fs::read(file_path)
             .await
             .context("While reading generated descriptor")?;
 
@@ -72,11 +83,11 @@ impl<T: AsRef<Path>> ProtoDescriptorPreparer<T> {
 
 impl<T: AsRef<Path>> Drop for ProtoDescriptorPreparer<T> {
     fn drop(&mut self) {
-        if let Some(file) = &self.created_file {
-            if let Err(e) = fs::remove_file(file.path()) {
+        if let Some(dir) = &self.created_dir {
+            if let Err(e) = fs::remove_dir(dir.path()) {
                 eprintln!(
-                    "Error while deleting temp file. Path {:?}. {:?}",
-                    file.path(),
+                    "Error while deleting descriptor temp dir. Path {:?}. {:?}",
+                    dir.path(),
                     e
                 )
             }

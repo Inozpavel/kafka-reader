@@ -8,7 +8,7 @@ use crate::reader_api::proto::read_messages::ReadLimit as ProtoReadLimit;
 use crate::util::StreamDataExtension;
 use anyhow::anyhow;
 use chrono::DateTime;
-use kafka_reader::consumer::read_messages_to_channel;
+use kafka_reader::consumer::{read_messages_to_channel, ConvertError};
 use kafka_reader::message::KafkaMessage;
 use kafka_reader::read_messages_request::{Format, ProtoConvertData, StartFrom};
 use kafka_reader::read_messages_request::{ReadLimit, ReadMessagesRequest};
@@ -134,8 +134,9 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
 }
 
 fn map_to_response(
-    message: Option<KafkaMessage>,
+    message: Result<Option<KafkaMessage>, ConvertError>,
 ) -> Result<proto::read_messages::Response, Status> {
+    let message = message.map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
     match message {
         None => Ok(proto::read_messages::Response {
             kafka_message: None,
