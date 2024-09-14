@@ -1,4 +1,4 @@
-use crate::message_metadata::PartitionOffset;
+use crate::consumer::PartitionOffset;
 
 #[derive(Debug)]
 pub enum ConsumeError {

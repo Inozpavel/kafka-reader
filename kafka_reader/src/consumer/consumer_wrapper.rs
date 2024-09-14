@@ -1,9 +1,9 @@
-use crate::consumer_settings::AutoOffsetReset;
 use anyhow::Context;
 use rdkafka::consumer::StreamConsumer;
 use rdkafka::ClientConfig;
 use std::ops::{Deref, DerefMut};
 use uuid::Uuid;
+use crate::consumer::AutoOffsetReset;
 
 pub struct ConsumerWrapper {
     consumer: StreamConsumer,
