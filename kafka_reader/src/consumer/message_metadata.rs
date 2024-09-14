@@ -1,5 +1,5 @@
-use getset::Getters;
 use crate::consumer::KafkaMessage;
+use getset::Getters;
 
 #[derive(Debug, Getters, Copy, Clone)]
 #[getset(get = "pub")]
@@ -36,9 +36,7 @@ impl From<&Option<KafkaMessage>> for MessageMetadata {
         let partition = value
             .map(|x| x.partition_offset.partition)
             .unwrap_or_default();
-        let offset = value
-            .map(|x| x.partition_offset.offset)
-            .unwrap_or_default();
+        let offset = value.map(|x| x.partition_offset.offset).unwrap_or_default();
         let is_null = value.is_none();
 
         let partition_offset = PartitionOffset::new(partition, offset);

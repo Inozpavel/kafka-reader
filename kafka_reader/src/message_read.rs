@@ -1,3 +1,6 @@
+use crate::consumer::{
+    AutoOffsetReset, ConsumerWrapper, KafkaMessage, MessageMetadata, PartitionOffset,
+};
 use crate::error::{ConsumeError, ConvertError};
 use crate::read_messages_request::ReadMessagesRequest;
 use crate::read_messages_request::{Format, ProtoConvertData, StartFrom};
@@ -11,7 +14,6 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
-use crate::consumer::{AutoOffsetReset, ConsumerWrapper, KafkaMessage, MessageMetadata, PartitionOffset};
 
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesRequest,
@@ -207,7 +209,7 @@ async fn bytes_to_string(
             }
         },
     }
-        .context("While converting body")?;
+    .context("While converting body")?;
 
     Ok(converted)
 }

@@ -8,8 +8,9 @@ use crate::reader_api::proto::read_messages::ReadLimit as ProtoReadLimit;
 use crate::util::StreamDataExtension;
 use anyhow::anyhow;
 use chrono::DateTime;
-use kafka_reader::message_read::run_read_messages_to_channel;
+use kafka_reader::consumer::KafkaMessage;
 use kafka_reader::error::ConvertError;
+use kafka_reader::message_read::run_read_messages_to_channel;
 use kafka_reader::read_messages_request::{Format, ProtoConvertData, StartFrom};
 use kafka_reader::read_messages_request::{ReadLimit, ReadMessagesRequest};
 use proto::read_messages::message_format::Format as ProtoMessageFormatVariant;
@@ -21,7 +22,6 @@ use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tonic::{Code, Request, Response, Status};
 use tracing::debug;
-use kafka_reader::consumer::KafkaMessage;
 
 pub mod proto {
     tonic::include_proto!("kafka_reader_api");
@@ -35,7 +35,7 @@ pub struct ReaderService;
 #[tonic::async_trait]
 impl proto::kafka_reader_server::KafkaReader for ReaderService {
     type ReadMessagesStream =
-    Box<dyn Stream<Item=Result<proto::read_messages::Response, Status>> + Send + Unpin>;
+        Box<dyn Stream<Item = Result<proto::read_messages::Response, Status>> + Send + Unpin>;
 
     async fn read_messages(
         &self,
