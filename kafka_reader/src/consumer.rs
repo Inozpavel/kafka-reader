@@ -1,3 +1,5 @@
+use crate::consumer_settings::AutoOffsetReset;
+use crate::consumer_wrapper::ConsumerWrapper;
 use crate::error::{ConsumeError, ConvertError};
 use crate::message::KafkaMessage;
 use crate::message_metadata::{MessageMetadata, PartitionOffset};
@@ -8,12 +10,11 @@ use bytes::BytesMut;
 use chrono::Duration;
 use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorHolder};
 use rdkafka::consumer::{Consumer, StreamConsumer};
-use rdkafka::{ClientConfig, Message};
+use rdkafka::Message;
 use tokio::select;
 use tokio::sync::mpsc::Receiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
-use uuid::Uuid;
 
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesRequest,
@@ -22,7 +23,11 @@ pub async fn run_read_messages_to_channel(
     if request.brokers.is_empty() {
         bail!("No brokers specified")
     }
-    let consumer = create_consumer(&request.brokers, &request.start_from)
+    let offset_reset = match request.start_from {
+        StartFrom::Beginning | StartFrom::Today => AutoOffsetReset::Earliest,
+        StartFrom::Latest => AutoOffsetReset::Latest,
+    };
+    let consumer = ConsumerWrapper::create(&request.brokers, offset_reset)
         .context("While creating consumer")?;
     let topic = request.topic.clone();
 
@@ -188,31 +193,4 @@ async fn bytes_to_string(
     .context("While converting body")?;
 
     Ok(converted)
-}
-
-fn create_consumer(
-    brokers: &[String],
-    start_from: &StartFrom,
-) -> Result<StreamConsumer, anyhow::Error> {
-    let offset_reset = match start_from {
-        StartFrom::Beginning | StartFrom::Today => "earliest",
-        StartFrom::Latest => "latest",
-    };
-    let brokers_string = brokers.join(",");
-
-    let consumer: StreamConsumer = ClientConfig::new()
-        .set("bootstrap.servers", brokers_string)
-        .set("auto.offset.reset", offset_reset)
-        .set("group.id", Uuid::now_v7().to_string())
-        .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "10000")
-        .set("enable.auto.commit", "true")
-        .set("auto.commit.interval.ms", "4000")
-        .set("message.max.bytes", "1000000000")
-        .set("receive.message.max.bytes", "2147483647")
-        // .set("debug", "")
-        .create()
-        .context("While creating a Kafka client config file")?;
-
-    Ok(consumer)
 }
