@@ -12,7 +12,7 @@ use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDesc
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::Message;
 use tokio::select;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
@@ -27,20 +27,21 @@ pub async fn run_read_messages_to_channel(
         StartFrom::Beginning | StartFrom::Today => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
-    let consumer = ConsumerWrapper::create(&request.brokers, offset_reset)
+    let mut consumer_wrapper = ConsumerWrapper::create(&request.brokers, offset_reset)
         .context("While creating consumer")?;
-    let topic = request.topic.clone();
 
-    consumer
+    let topic = request.topic.clone();
+    consumer_wrapper
         .subscribe(&[&topic])
         .context("While subscribing to topic")?;
 
     let mut preparer = None;
     let (tx, rx) = tokio::sync::mpsc::channel(128);
+
     tokio::task::spawn(async move {
         loop {
             let message_result = select! {
-                msg = read_message(&consumer, &request.format, &request.format, &mut preparer) => {
+                msg = read_message(&consumer_wrapper, &request.format, &request.format, &mut preparer) => {
                     msg
                 }
                 _ = cancellation_token.cancelled() => {
@@ -49,36 +50,10 @@ pub async fn run_read_messages_to_channel(
                 }
             };
 
-            match message_result {
-                Ok(message) => {
-                    let metadata = MessageMetadata::from(&message);
-                    if let Err(e) = tx.send(Ok(message)).await {
-                        error!(
-                            "Error while sending message to channel. Topic {}, metadata: {:?}. {:?}",
-                            topic, metadata, e
-                        );
-                        break;
-                    }
-
-                    if let Err(e) =
-                        consumer.store_offset(&topic, metadata.partition(), metadata.offset())
-                    {
-                        error!("Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",  topic, metadata, e);
-                    }
-                }
-                Err(e) => {
-                    match e {
-                        ConsumeError::RdKafkaError(e) => {
-                            error!("Error while reading message from kafka consumer: {:?}", e)
-                        }
-                        ConsumeError::ConvertError(e) => {
-                            if let Err(e) = tx.send(Err(e)).await {
-                                error!("Error while sending message to channel. Topic {}, metadata: {:?}", topic, e                        );
-                                break;
-                            }
-                        }
-                    }
-                }
+            if let Err(()) =
+                handle_message_result(message_result, &tx, &topic, &mut consumer_wrapper).await
+            {
+                break;
             }
         }
     });
@@ -140,6 +115,55 @@ async fn read_message(
     };
 
     Ok(Some(message))
+}
+
+async fn handle_message_result(
+    message_result: Result<Option<KafkaMessage>, ConsumeError>,
+    tx: &Sender<Result<Option<KafkaMessage>, ConvertError>>,
+    topic: &str,
+    consumer_wrapper: &mut ConsumerWrapper,
+) -> Result<(), ()> {
+    match message_result {
+        Ok(message) => {
+            let metadata = MessageMetadata::from(&message);
+            if let Err(e) = tx.send(Ok(message)).await {
+                error!(
+                    "Error while sending message to channel. Topic {}, metadata: {:?}. {:?}",
+                    topic, metadata, e
+                );
+                return Err(());
+            }
+
+            if let Err(e) =
+                consumer_wrapper.store_offset(&topic, metadata.partition(), metadata.offset())
+            {
+                error!(
+                    "Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",
+                    topic, metadata, e
+                );
+            }
+
+            Ok(())
+        }
+        Err(e) => {
+            match e {
+                ConsumeError::RdKafkaError(e) => {
+                    error!("Error while reading message from kafka consumer: {:?}", e)
+                }
+                ConsumeError::ConvertError(e) => {
+                    if let Err(e) = tx.send(Err(e)).await {
+                        error!(
+                            "Error while sending message to channel. Topic {}, metadata: {:?}",
+                            topic, e
+                        );
+
+                        return Err(());
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 async fn message_part_to_string(
