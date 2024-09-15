@@ -1,6 +1,0 @@
-services:
-  reader:
-    container_name: test-reader
-    image: ghcr.io/inozpavel/kafka-reader:latest
-    ports:
-      - 50005:80
