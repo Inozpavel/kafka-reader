@@ -61,7 +61,9 @@ pub async fn run_read_messages_to_channel(
             };
 
             let converted_message = match message_result {
-                Ok(message) => convert_message(message, &request.format, &request.format, holder),
+                Ok(message) => {
+                    convert_message(message, &request.key_format, &request.body_format, holder)
+                }
                 Err(e) => {
                     error!("Error while reading message from kafka consumer: {:?}", e);
                     return;

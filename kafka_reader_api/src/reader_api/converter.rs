@@ -3,25 +3,27 @@ use super::*;
 use crate::reader_api::proto;
 use anyhow::anyhow;
 use chrono::{DateTime, Timelike};
-use prost_types::Timestamp;
 use kafka_reader::consumer::KafkaMessage;
 use kafka_reader::error::ConvertError;
 use kafka_reader::requests::read_messages_request::{
     Format, ProtoConvertData, ReadLimit, ReadMessagesRequest, StartFrom,
 };
+use prost_types::Timestamp;
 use tonic::Status;
 
 pub fn proto_request_to_read_request(
     request: proto::Request,
 ) -> Result<ReadMessagesRequest, anyhow::Error> {
-    let format = proto_format_to_format(request.format)?;
+    let key_format = proto_format_to_format(request.key_format)?;
+    let body_format = proto_format_to_format(request.body_format)?;
     let start_from = proto_start_from_to_from(request.start_from)?;
     let limit = proto_limit_to_limit(request.limit)?;
 
     let result = ReadMessagesRequest {
         topic: request.topic,
         brokers: request.brokers,
-        format,
+        key_format,
+        body_format,
         start_from,
         limit,
     };
