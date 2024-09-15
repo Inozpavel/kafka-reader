@@ -1,4 +1,4 @@
-FROM rust:slim-bookworm as base
+FROM rust:slim as base
 
 RUN apt update && yes | apt install protobuf-compiler
 
@@ -11,6 +11,8 @@ RUN cargo build --release
 FROM debian:bookworm-slim as release
 
 WORKDIR /app
+
+RUN apt update && yes | apt install protobuf-compiler
 
 COPY --from=base /src/appsettings.toml ./appsettings.toml
 COPY --from=base /src/target/release/kafka_reader_api ./kafka_reader_api
