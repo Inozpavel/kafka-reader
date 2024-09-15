@@ -52,7 +52,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.TOKEN }}
 
       - name: Push to GitHub Packages
         uses: docker/build-push-action@v6
@@ -64,4 +64,4 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}
           secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            GIT_AUTH_TOKEN=${{ secrets.TOKEN }}
