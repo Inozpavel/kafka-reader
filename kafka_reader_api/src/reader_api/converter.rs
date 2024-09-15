@@ -67,7 +67,7 @@ fn proto_start_from_to_from(
     let from = match proto_from {
         ProtoStartFromVariant::Beginning(_) => StartFrom::Beginning,
         ProtoStartFromVariant::Latest(_) => StartFrom::Latest,
-        ProtoStartFromVariant::Today(_) => StartFrom::Today,
+        ProtoStartFromVariant::Today(_) => StartFrom::Day(chrono::Utc::now().date_naive()),
     };
 
     Ok(from)

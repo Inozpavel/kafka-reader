@@ -1,6 +1,8 @@
+use chrono::NaiveDate;
+
 #[derive(Debug, Copy, Clone)]
 pub enum StartFrom {
     Beginning,
     Latest,
-    Today,
+    Day(NaiveDate),
 }

@@ -3,7 +3,7 @@ use crate::consumer::{
 };
 use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
-    Format, ProtoConvertData, ReadMessagesRequest, StartFrom,
+    Format, ProtoConvertData, ReadLimit, ReadMessagesRequest, StartFrom,
 };
 use anyhow::{anyhow, bail, Context};
 use bytes::BytesMut;
@@ -28,7 +28,7 @@ pub async fn run_read_messages_to_channel(
         bail!("No brokers specified")
     }
     let offset_reset = match request.start_from {
-        StartFrom::Beginning | StartFrom::Today => AutoOffsetReset::Earliest,
+        StartFrom::Beginning | StartFrom::Day(_) => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
     let consumer_wrapper = ConsumerWrapper::create(&request.brokers, offset_reset)
@@ -69,6 +69,7 @@ pub async fn run_read_messages_to_channel(
 
             tokio::task::spawn(handle_message_result(
                 converted_message,
+                request.clone(),
                 tx.clone(),
                 topic.clone(),
                 consumer_wrapper.clone(),
@@ -124,11 +125,20 @@ async fn convert_message<'a>(
 
 async fn handle_message_result(
     message_result: ResultChannelItem,
+    request: Arc<ReadMessagesRequest>,
     tx: Sender<ResultChannelItem>,
     topic: Arc<String>,
     consumer_wrapper: Arc<ConsumerWrapper>,
     cancellation_token: CancellationToken,
 ) {
+    if !check_message_pass_start_condition(&message_result, &request.start_from) {
+        return;
+    }
+
+    if !check_message_pass_limit_condition(&message_result, &request.limit) {
+        return;
+    }
+
     match message_result {
         Ok(message) => {
             let metadata = MessageMetadata::from(&message);
@@ -159,6 +169,27 @@ async fn handle_message_result(
                 cancellation_token.cancel();
             }
         }
+    }
+}
+
+fn check_message_pass_start_condition(message: &ResultChannelItem, start_from: &StartFrom) -> bool {
+    let Ok(Some(message_value)) = message else {
+        return true;
+    };
+    match start_from {
+        StartFrom::Beginning | StartFrom::Latest => true,
+        StartFrom::Day(day) => message_value.timestamp.date_naive() >= *day,
+    }
+}
+
+fn check_message_pass_limit_condition(message: &ResultChannelItem, limit: &ReadLimit) -> bool {
+    let Ok(Some(message_value)) = message else {
+        return true;
+    };
+    match limit {
+        ReadLimit::NoLimit => true,
+        ReadLimit::MessageCount(_) => false,
+        ReadLimit::ToDate(_) => false,
     }
 }
 
