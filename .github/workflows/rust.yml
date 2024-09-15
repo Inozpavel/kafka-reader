@@ -9,7 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/inozpavel/kafka-reader:latest
+  IMAGE_NAME: ghcr.io/inozpavel/kafka-reader
 
 jobs:
   check:
@@ -64,4 +64,4 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}
           secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.TOKEN }}
+            GIT_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
