@@ -63,5 +63,3 @@ jobs:
           cache-to: type=gha,mode=max
           tags: |
             ${{ env.IMAGE_NAME }}
-          secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.TOKEN }}
