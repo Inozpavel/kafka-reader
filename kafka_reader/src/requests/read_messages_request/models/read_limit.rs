@@ -1,8 +1,8 @@
-use chrono::NaiveDate;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Copy, Clone)]
 pub enum ReadLimit {
     NoLimit,
     MessageCount(u64),
-    ToDate(NaiveDate),
+    ToTime(DateTime<Utc>),
 }

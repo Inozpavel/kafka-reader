@@ -30,7 +30,7 @@ pub async fn run_read_messages_to_channel(
         bail!("No brokers specified")
     }
     let offset_reset = match request.start_from {
-        StartFrom::Beginning | StartFrom::Day(_) => AutoOffsetReset::Earliest,
+        StartFrom::Beginning | StartFrom::Time(_) => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
     let consumer_wrapper = ConsumerWrapper::create(&request.brokers, offset_reset)
@@ -184,7 +184,7 @@ fn check_start_condition(message: &ChannelItem, start_from: &StartFrom) -> bool 
     };
     match start_from {
         StartFrom::Beginning | StartFrom::Latest => true,
-        StartFrom::Day(day) => message_value.timestamp.date_naive() >= *day,
+        StartFrom::Time(time) => message_value.timestamp >= time.time(),
     }
 }
 
@@ -203,7 +203,7 @@ fn check_limit_condition(
 
             last_value < *count
         }
-        ReadLimit::ToDate(date) => message_value.timestamp.date_naive() <= *date,
+        ReadLimit::ToTime(date) => message_value.timestamp <= *date,
     }
 }
 

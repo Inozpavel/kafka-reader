@@ -1,14 +1,13 @@
 use super::*;
 
 use crate::reader_api::proto;
+use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
-use chrono::{DateTime, Timelike};
 use kafka_reader::consumer::KafkaMessage;
 use kafka_reader::requests::read_messages_request::{
-    FilterCondition, FilterKind, Format, ProtoConvertData, ReadLimit, ReadMessagesRequest,
-    StartFrom, ValueFilter,
+    FilterCondition, FilterKind, Format, MessageTime, ProtoConvertData, ReadLimit,
+    ReadMessagesRequest, StartFrom, ValueFilter,
 };
-use prost_types::Timestamp;
 use regex::Regex;
 use tonic::Status;
 
@@ -114,8 +113,14 @@ fn proto_start_from_to_from(
     let from = match proto_from {
         ProtoStartFromVariant::FromBeginning(_) => StartFrom::Beginning,
         ProtoStartFromVariant::FromLatest(_) => StartFrom::Latest,
-        ProtoStartFromVariant::FromToday(_) => StartFrom::Day(chrono::Utc::now().date_naive()),
-        ProtoStartFromVariant::FromTime(_) => todo!(),
+        ProtoStartFromVariant::FromToday(_) => StartFrom::Time(MessageTime::today()),
+        ProtoStartFromVariant::FromTime(time) => {
+            let message_time = time
+                .day
+                .context("From time filter can't be null")?
+                .to_date_time();
+            StartFrom::Time(message_time.into())
+        }
     };
 
     Ok(from)
@@ -132,10 +137,11 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
         ProtoReadLimitVariant::NoLimit(_) => ReadLimit::NoLimit,
         ProtoReadLimitVariant::MessageCount(c) => ReadLimit::MessageCount(c.count),
         proto::read_limit::Limit::ToTime(d) => {
-            let proto_date = d.time.ok_or(anyhow!("To date limit can't be null"))?;
-            let date = DateTime::from_timestamp(proto_date.seconds, proto_date.nanos as u32)
-                .ok_or(anyhow!("Can't convert datetime"))?;
-            ReadLimit::ToDate(date.date_naive())
+            let time = d
+                .time
+                .ok_or(anyhow!("To date limit can't be null"))?
+                .to_date_time();
+            ReadLimit::ToTime(time)
         }
     };
 
@@ -151,10 +157,7 @@ pub fn response_to_proto_response(
         }),
         Some(value) => Ok(proto::Response {
             kafka_message: Some(proto::KafkaMessage {
-                timestamp: Some(Timestamp {
-                    nanos: value.timestamp.nanosecond() as i32,
-                    seconds: value.timestamp.timestamp(),
-                }),
+                timestamp: Some(value.timestamp.to_proto_timestamp()),
                 key: value.key.unwrap_or_else(|e| Some(format!("{:?}", e))),
                 body: value.body.unwrap_or_else(|e| Some(format!("{:?}", e))),
                 headers: value.headers.unwrap_or_default(),
