@@ -15,4 +15,4 @@ WORKDIR /app
 COPY --from=base /src/target /app
 
 ENV APP__PORT=80
-ENTRYPOINT ["sleep", "infinity"]
+ENTRYPOINT ["kafka_reader_api"]
