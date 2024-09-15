@@ -1,14 +1,15 @@
 use super::*;
 
 use crate::reader_api::proto;
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use chrono::{DateTime, Timelike};
 use kafka_reader::consumer::KafkaMessage;
-use kafka_reader::error::ConvertError;
 use kafka_reader::requests::read_messages_request::{
-    Format, ProtoConvertData, ReadLimit, ReadMessagesRequest, StartFrom,
+    FilterCondition, FilterKind, Format, ProtoConvertData, ReadLimit, ReadMessagesRequest,
+    StartFrom, ValueFilter,
 };
 use prost_types::Timestamp;
+use regex::Regex;
 use tonic::Status;
 
 pub fn proto_request_to_read_request(
@@ -16,6 +17,10 @@ pub fn proto_request_to_read_request(
 ) -> Result<ReadMessagesRequest, anyhow::Error> {
     let key_format = proto_format_to_format(request.key_format)?;
     let body_format = proto_format_to_format(request.body_format)?;
+
+    let key_value_filter = proto_value_filter_to_filter(request.key_filter)?;
+    let body_value_filter = proto_value_filter_to_filter(request.body_filter)?;
+
     let start_from = proto_start_from_to_from(request.start_from)?;
     let limit = proto_limit_to_limit(request.limit)?;
 
@@ -24,11 +29,50 @@ pub fn proto_request_to_read_request(
         brokers: request.brokers,
         key_format,
         body_format,
+        key_value_filter,
+        body_value_filter,
         start_from,
         limit,
     };
 
     Ok(result)
+}
+
+fn proto_value_filter_to_filter(
+    filter: Option<ProtoValueFilter>,
+) -> Result<Option<ValueFilter>, anyhow::Error> {
+    let Some(value) = filter else {
+        return Ok(None);
+    };
+    let proto_filter_kind = value
+        .filter_kind
+        .context("FilterKind can't be null")?
+        .kind
+        .context("FilterKind filter can't be null")?;
+
+    let filter_kind = match proto_filter_kind {
+        ProtoFilterKindVariant::StringValue(s) => FilterKind::String(s.value),
+        ProtoFilterKindVariant::RegexValue(regex) => {
+            let regex = Regex::new(&regex.value).context("While creating regex")?;
+            FilterKind::Regex(regex)
+        }
+    };
+
+    let proto_condition = value
+        .condition
+        .context("FilterKind can't be null")?
+        .condition
+        .context("FilterKind filter can't be null")?;
+
+    let filter_condition = match proto_condition {
+        ProtoFilterCondition::Contains(_) => FilterCondition::Contains,
+        ProtoFilterCondition::NotContains(_) => FilterCondition::NotContains,
+    };
+
+    Ok(Some(ValueFilter {
+        filter_condition,
+        filter_kind,
+    }))
 }
 fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format, anyhow::Error> {
     let proto_format =
@@ -47,8 +91,8 @@ fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format,
                 .decode_way
                 .ok_or(anyhow!("Protobuf format can't be none"))?
             {
-                proto::message_format::proto_format::DecodeWay::RawProtoFile(file) => {
-                    Format::Protobuf(ProtoConvertData::RawProto(file.proto))
+                proto::message_format::proto_format::DecodeWay::RawProtoFile(single_file) => {
+                    Format::Protobuf(ProtoConvertData::RawProto(single_file.file))
                 }
             }
         }
@@ -63,14 +107,15 @@ fn proto_start_from_to_from(
     let proto_from =
         message_format
             .and_then(|x| x.from)
-            .unwrap_or(ProtoStartFromVariant::Beginning(
+            .unwrap_or(ProtoStartFromVariant::FromBeginning(
                 proto::start_from::FromBeginning {},
             ));
 
     let from = match proto_from {
-        ProtoStartFromVariant::Beginning(_) => StartFrom::Beginning,
-        ProtoStartFromVariant::Latest(_) => StartFrom::Latest,
-        ProtoStartFromVariant::Today(_) => StartFrom::Day(chrono::Utc::now().date_naive()),
+        ProtoStartFromVariant::FromBeginning(_) => StartFrom::Beginning,
+        ProtoStartFromVariant::FromLatest(_) => StartFrom::Latest,
+        ProtoStartFromVariant::FromToday(_) => StartFrom::Day(chrono::Utc::now().date_naive()),
+        ProtoStartFromVariant::FromTime(_) => todo!(),
     };
 
     Ok(from)
@@ -86,8 +131,8 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
     let limit = match proto_limit {
         ProtoReadLimitVariant::NoLimit(_) => ReadLimit::NoLimit,
         ProtoReadLimitVariant::MessageCount(c) => ReadLimit::MessageCount(c.count),
-        proto::read_limit::Limit::ToDate(d) => {
-            let proto_date = d.date.ok_or(anyhow!("To date limit can't be null"))?;
+        proto::read_limit::Limit::ToTime(d) => {
+            let proto_date = d.time.ok_or(anyhow!("To date limit can't be null"))?;
             let date = DateTime::from_timestamp(proto_date.seconds, proto_date.nanos as u32)
                 .ok_or(anyhow!("Can't convert datetime"))?;
             ReadLimit::ToDate(date.date_naive())
@@ -98,9 +143,8 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
 }
 
 pub fn response_to_proto_response(
-    message: Result<Option<KafkaMessage>, ConvertError>,
+    message: Option<KafkaMessage>,
 ) -> Result<proto::Response, Status> {
-    let message = message.map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
     match message {
         None => Ok(proto::Response {
             kafka_message: None,

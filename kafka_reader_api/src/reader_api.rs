@@ -4,12 +4,15 @@ mod converter;
 pub use api::*;
 pub use converter::*;
 
+use proto::filter_kind::Kind as ProtoFilterKindVariant;
 use proto::message_format::Format as ProtoFormatVariant;
 use proto::read_limit::Limit as ProtoReadLimitVariant;
 use proto::start_from::From as ProtoStartFromVariant;
+use proto::value_filter::condition::Condition as ProtoFilterCondition;
 use proto::MessageFormat as ProtoFormat;
 use proto::ReadLimit as ProtoReadLimit;
 use proto::StartFrom as ProtoStartFrom;
+use proto::ValueFilter as ProtoValueFilter;
 
 pub mod proto {
     pub use kafka_reader_server::*;

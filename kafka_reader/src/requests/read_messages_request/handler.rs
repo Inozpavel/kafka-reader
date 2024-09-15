@@ -3,7 +3,8 @@ use crate::consumer::{
 };
 use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
-    Format, ProtoConvertData, ReadLimit, ReadMessagesRequest, StartFrom,
+    FilterCondition, FilterKind, Format, ProtoConvertData, ReadLimit, ReadMessagesRequest,
+    StartFrom, ValueFilter,
 };
 use anyhow::{anyhow, bail, Context};
 use bytes::BytesMut;
@@ -19,12 +20,12 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
-type ResultChannelItem = Result<Option<KafkaMessage>, ConvertError>;
+type ChannelItem = Option<KafkaMessage>;
 
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesRequest,
     cancellation_token: CancellationToken,
-) -> Result<Receiver<ResultChannelItem>, anyhow::Error> {
+) -> Result<Receiver<ChannelItem>, anyhow::Error> {
     if request.brokers.is_empty() {
         bail!("No brokers specified")
     }
@@ -91,7 +92,7 @@ async fn convert_message<'a>(
     key_format: &Format,
     body_format: &Format,
     holder: Arc<RwLock<Option<ProtoDescriptorHolder>>>,
-) -> ResultChannelItem {
+) -> ChannelItem {
     let milliseconds = message.timestamp().to_millis().unwrap_or(0);
     let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::milliseconds(milliseconds);
 
@@ -125,62 +126,60 @@ async fn convert_message<'a>(
         headers: None,
     };
 
-    Ok(Some(message))
+    Some(message)
 }
 
 async fn handle_message_result(
-    message_result: ResultChannelItem,
+    message: ChannelItem,
     request: Arc<ReadMessagesRequest>,
-    tx: Sender<ResultChannelItem>,
+    tx: Sender<ChannelItem>,
     topic: Arc<String>,
     consumer_wrapper: Arc<ConsumerWrapper>,
     message_check_counter: Arc<AtomicU64>,
     cancellation_token: CancellationToken,
 ) {
-    if !check_start_condition(&message_result, &request.start_from) {
+    if !check_start_condition(&message, &request.start_from) {
         return;
     }
 
-    if !check_limit_condition(&message_check_counter, &message_result, &request.limit) {
+    if let Some(value) = &message {
+        let filter_passed =
+            check_message_part_filter(value, |m| &m.key, request.key_value_filter.as_ref())
+                || check_message_part_filter(
+                    value,
+                    |m| &m.body,
+                    request.body_value_filter.as_ref(),
+                );
+
+        if !filter_passed {
+            return;
+        }
+    }
+
+    if !check_limit_condition(&message, &message_check_counter, &request.limit) {
         cancellation_token.cancel();
         return;
     }
 
-    match message_result {
-        Ok(message) => {
-            let metadata = MessageMetadata::from(&message);
-            if let Err(e) = tx.send(Ok(message)).await {
-                error!(
-                    "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
-                    topic, metadata, e
-                );
-                cancellation_token.cancel();
-            }
+    let metadata = MessageMetadata::from(&message);
+    if let Err(e) = tx.send(message).await {
+        error!(
+            "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
+            topic, metadata, e
+        );
+        cancellation_token.cancel();
+    }
 
-            if let Err(e) =
-                consumer_wrapper.store_offset(&topic, metadata.partition(), metadata.offset())
-            {
-                error!(
-                    "Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",
-                    topic, metadata, e
-                );
-            }
-        }
-        Err(e) => {
-            if let Err(e) = tx.send(Err(e)).await {
-                error!(
-                    "Error while sending error message to channel. Topic {}, error: {}",
-                    topic, e
-                );
-
-                cancellation_token.cancel();
-            }
-        }
+    if let Err(e) = consumer_wrapper.store_offset(&topic, metadata.partition(), metadata.offset()) {
+        error!(
+            "Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",
+            topic, metadata, e
+        );
     }
 }
 
-fn check_start_condition(message: &ResultChannelItem, start_from: &StartFrom) -> bool {
-    let Ok(Some(message_value)) = message else {
+fn check_start_condition(message: &ChannelItem, start_from: &StartFrom) -> bool {
+    let Some(message_value) = message else {
         return true;
     };
     match start_from {
@@ -190,11 +189,11 @@ fn check_start_condition(message: &ResultChannelItem, start_from: &StartFrom) ->
 }
 
 fn check_limit_condition(
+    message: &ChannelItem,
     message_check_counter: &AtomicU64,
-    message: &ResultChannelItem,
     limit: &ReadLimit,
 ) -> bool {
-    let Ok(Some(message_value)) = message else {
+    let Some(message_value) = message else {
         return true;
     };
     match limit {
@@ -205,6 +204,39 @@ fn check_limit_condition(
             last_value < *count
         }
         ReadLimit::ToDate(date) => message_value.timestamp.date_naive() <= *date,
+    }
+}
+
+fn check_message_part_filter<F>(
+    message: &KafkaMessage,
+    part_fn: F,
+    value_filter: Option<&ValueFilter>,
+) -> bool
+where
+    F: Fn(&KafkaMessage) -> &Result<Option<String>, ConvertError>,
+{
+    let Some(filter) = value_filter else {
+        return true;
+    };
+
+    let part = part_fn(message);
+    let Ok(part) = part else {
+        return true;
+    };
+
+    let Some(value) = part else {
+        return false;
+    };
+
+    match &filter.filter_kind {
+        FilterKind::String(s) => match filter.filter_condition {
+            FilterCondition::Contains => value.contains(s),
+            FilterCondition::NotContains => !value.contains(s),
+        },
+        FilterKind::Regex(r) => match filter.filter_condition {
+            FilterCondition::Contains => r.is_match(value),
+            FilterCondition::NotContains => !r.is_match(value),
+        },
     }
 }
 

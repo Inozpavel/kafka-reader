@@ -34,48 +34,64 @@ message ReadMessages {
     message HexFormat {}
     message ProtoFormat {
       oneof decode_way {
-        RawProtoFile raw_proto_file = 1;
+        SingleProtoFile raw_proto_file = 1;
       }
     }
-    message RawProtoFile{
-      string proto = 1;
+    message SingleProtoFile {
+      string file = 1;
     }
     message Ignore {}
   }
   message StartFrom {
     oneof from {
-      FromBeginning beginning = 1;
-      FromLatest latest = 2;
-      FromToday today = 3;
+      FromBeginning from_beginning = 1;
+      FromLatest from_latest = 2;
+      FromToday from_today = 3;
+      FromTime from_time = 4;
     }
     message FromBeginning {}
     message FromLatest {}
     message FromToday {}
+    message FromTime {
+      google.protobuf.Timestamp day = 1;
+    }
   }
   message ValueFilter {
-    string regex_value = 1;
+    FilterKind filter_kind = 1;
     Condition condition = 2;
     message Condition {
       oneof condition {
         Contains contains = 1;
-        NotContains no_contains = 2;
+        NotContains not_contains = 2;
       }
     }
     message Contains {}
     message NotContains {}
   }
+  message FilterKind {
+    oneof kind {
+      StringValue string_value = 1;
+      RegexValue regex_value = 2;
+    }
+  }
+  message StringValue {
+    string value = 1;
+  }
+  message RegexValue {
+    string value = 1;
+  }
   message ReadLimit {
     oneof limit {
       NoLimit no_limit = 1;
       MessageCount message_count = 2;
-      ToDate to_date = 3;
+      ToTime to_time = 3;
     }
     message NoLimit {}
     message MessageCount {
       uint64 count = 1;
     }
-    message ToDate {
-      google.protobuf.Timestamp date = 1;
+    message ToTime {
+      google.protobuf.Timestamp time = 1;
     }
   }
 
