@@ -4,19 +4,9 @@ RUN apt update && yes | apt install protobuf-compiler
 
 WORKDIR /src
 
-VOLUME . ~/.cargo/registry/cache
-
-#RUN cargo new --bin /app
-
-#COPY Cargo.toml Cargo.toml
-#COPY Cargo.lock Cargo.lock
-
-#RUN cargo build
-#RUN rm src/*
-
 COPY . .
 
-RUN cargo build
+RUN cargo build --release
 
 FROM debian:bookworm as release
 
@@ -24,4 +14,5 @@ WORKDIR /app
 
 COPY --from=base /src/target /app
 
+ENV APP__PORT=80
 ENTRYPOINT ["sleep", "infinity"]
