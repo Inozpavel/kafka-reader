@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 pub struct ProtoDescriptorPreparer<T: AsRef<Path>> {
     created_dir: Option<tempfile::TempDir>,
     proto_path: T,
-    includes: Vec<T>,
+    _includes: Vec<T>,
     file_descriptor_set: Option<FileDescriptorProto>,
 }
 
@@ -15,7 +15,7 @@ impl<T: AsRef<Path>> ProtoDescriptorPreparer<T> {
     pub fn new(proto_path: T, includes: Vec<T>) -> Self {
         Self {
             proto_path,
-            includes,
+            _includes: includes,
             created_dir: None,
             file_descriptor_set: None,
         }
@@ -44,6 +44,8 @@ impl<T: AsRef<Path>> ProtoDescriptorPreparer<T> {
             .protoc_arg("/")
             .build_client(false)
             .build_server(false)
+            .build_transport(false)
+            .emit_rerun_if_changed(false)
             .compile(
                 &[&self.proto_path.as_ref()],
                 Vec::<PathBuf>::new().as_slice(),

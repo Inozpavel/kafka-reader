@@ -1,4 +1,7 @@
 #![warn(unused_imports)]
+#![deny(clippy::clone_on_copy)]
+#![deny(forgetting_copy_types)]
+#![deny(clippy::style)]
 
 use anyhow::Context;
 use kafka_reader_api::app_config::AppConfig;

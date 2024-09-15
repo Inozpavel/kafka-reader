@@ -2,8 +2,9 @@ use crate::consumer::{
     AutoOffsetReset, ConsumerWrapper, KafkaMessage, MessageMetadata, PartitionOffset,
 };
 use crate::error::{ConsumeError, ConvertError};
-use crate::read_messages_request::ReadMessagesRequest;
-use crate::read_messages_request::{Format, ProtoConvertData, StartFrom};
+use crate::requests::read_messages_request::{
+    Format, ProtoConvertData, ReadMessagesRequest, StartFrom,
+};
 use anyhow::{anyhow, bail, Context};
 use bytes::BytesMut;
 use chrono::Duration;
@@ -131,7 +132,7 @@ async fn handle_message_result(
             }
 
             if let Err(e) =
-                consumer_wrapper.store_offset(&topic, metadata.partition(), metadata.offset())
+                consumer_wrapper.store_offset(topic, metadata.partition(), metadata.offset())
             {
                 error!(
                     "Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",
@@ -179,7 +180,7 @@ async fn message_part_to_string(
         ));
     };
 
-    let result_string = bytes_to_string(bytes, &format, descriptor_holder)
+    let result_string = bytes_to_string(bytes, format, descriptor_holder)
         .await
         .with_context(|| format!("While converting {} bytes to json string", part_name))?;
 
@@ -204,12 +205,11 @@ async fn bytes_to_string(
                     *holder = Some(new_descriptor_holder);
                 }
                 let preparer = holder.as_mut().map(|x| x.preparer()).unwrap();
-                let json_from_proto = proto_bytes_to_json_string(bytes, preparer).await;
-                json_from_proto
+                proto_bytes_to_json_string(bytes, preparer).await
             }
         },
     }
-    .context("While converting body")?;
+        .context("While converting body")?;
 
     Ok(converted)
 }
