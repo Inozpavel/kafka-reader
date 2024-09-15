@@ -1,6 +1,6 @@
-FROM rust:slim as base
+FROM rust:1.81-slim as base
 
-RUN apt update && yes | apt install protobuf-compiler
+RUN apt update && yes | apt install protobuf-compiler gcc make
 
 WORKDIR /src
 
