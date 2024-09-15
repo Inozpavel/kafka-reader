@@ -36,6 +36,7 @@ fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format,
             ));
 
     let format = match proto_format {
+        ProtoFormatVariant::Ignore(_) => Format::Ignore,
         ProtoFormatVariant::StringFormat(_) => Format::String,
         ProtoFormatVariant::HexFormat(_) => Format::Hex,
         ProtoFormatVariant::ProtoFormat(protobuf_data) => {

@@ -184,17 +184,18 @@ async fn message_part_to_string(
         .await
         .with_context(|| format!("While converting {} bytes to json string", part_name))?;
 
-    Ok(Some(result_string))
+    Ok(result_string)
 }
 
 async fn bytes_to_string(
     bytes: &[u8],
     format: &Format,
     holder: &mut Option<ProtoDescriptorHolder>,
-) -> Result<String, anyhow::Error> {
+) -> Result<Option<String>, anyhow::Error> {
     let converted = match format {
-        Format::String => Ok(String::from_utf8_lossy(bytes).to_string()),
-        Format::Hex => Ok(format!("{:02X}", BytesMut::from(bytes))),
+        Format::Ignore => Ok(None),
+        Format::String => Ok(Some(String::from_utf8_lossy(bytes).to_string())),
+        Format::Hex => Ok(Some(format!("{:02X}", BytesMut::from(bytes)))),
         Format::Protobuf(ref convert) => match convert {
             ProtoConvertData::RawProto(proto_file) => {
                 if holder.is_none() {
@@ -205,11 +206,11 @@ async fn bytes_to_string(
                     *holder = Some(new_descriptor_holder);
                 }
                 let preparer = holder.as_mut().map(|x| x.preparer()).unwrap();
-                proto_bytes_to_json_string(bytes, preparer).await
+                proto_bytes_to_json_string(bytes, preparer).await.map(Some)
             }
         },
     }
-        .context("While converting body")?;
+    .context("While converting body")?;
 
     Ok(converted)
 }

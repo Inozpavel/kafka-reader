@@ -25,6 +25,7 @@ message ReadMessages {
       StringFormat string_format = 1;
       HexFormat hex_format = 2;
       ProtoFormat proto_format = 3;
+      Ignore ignore = 4;
     }
     message StringFormat {}
     message HexFormat {}
@@ -36,6 +37,7 @@ message ReadMessages {
     message RawProtoFile{
       string proto = 1;
     }
+    message Ignore {}
   }
   message StartFrom {
     oneof from {
@@ -63,7 +65,7 @@ message ReadMessages {
   }
 
   message Response {
-    optional KafkaMessage kafka_message = 1;
+    KafkaMessage kafka_message = 1;
   }
   message KafkaMessage{
     google.protobuf.StringValue key = 1;

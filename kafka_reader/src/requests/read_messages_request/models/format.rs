@@ -1,5 +1,6 @@
 #[derive(Debug)]
 pub enum Format {
+    Ignore,
     String,
     Hex,
     Protobuf(ProtoConvertData),
