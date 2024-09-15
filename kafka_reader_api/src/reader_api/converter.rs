@@ -84,8 +84,8 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
         ProtoReadLimitVariant::NoLimit(_) => ReadLimit::NoLimit,
         ProtoReadLimitVariant::MessageCount(c) => ReadLimit::MessageCount(c.count),
         proto::read_limit::Limit::ToDate(d) => {
-            let proto_to_date = d.date.ok_or(anyhow!("To date limit can't be null"))?;
-            let date = DateTime::from_timestamp(proto_to_date.seconds, proto_to_date.nanos as u32)
+            let proto_date = d.date.ok_or(anyhow!("To date limit can't be null"))?;
+            let date = DateTime::from_timestamp(proto_date.seconds, proto_date.nanos as u32)
                 .ok_or(anyhow!("Can't convert datetime"))?;
             ReadLimit::ToDate(date.date_naive())
         }
@@ -104,8 +104,8 @@ pub fn response_to_proto_response(
         }),
         Some(value) => Ok(proto::Response {
             kafka_message: Some(proto::KafkaMessage {
-                key: value.key,
-                body: value.body,
+                key: value.key.unwrap_or_else(|e| Some(format!("{:?}", e))),
+                body: value.body.unwrap_or_else(|e| Some(format!("{:?}", e))),
                 headers: value.headers.unwrap_or_default(),
             }),
         }),

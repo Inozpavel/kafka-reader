@@ -106,14 +106,14 @@ async fn convert_message<'a>(
         .map_err(|e| ConvertError {
             error: e,
             partition_offset,
-        })?;
+        });
     let payload_result = message.payload_view::<[u8]>();
     let body = message_part_to_string("body", payload_result, body_format, &holder)
         .await
         .map_err(|e| ConvertError {
             error: e,
             partition_offset,
-        })?;
+        });
 
     let message = KafkaMessage {
         partition_offset,
@@ -140,6 +140,7 @@ async fn handle_message_result(
     }
 
     if !check_limit_condition(&message_check_counter, &message_result, &request.limit) {
+        cancellation_token.cancel();
         return;
     }
 
@@ -197,9 +198,9 @@ fn check_limit_condition(
     match limit {
         ReadLimit::NoLimit => true,
         ReadLimit::MessageCount(count) => {
-            let current_value = message_check_counter.fetch_add(1, Ordering::Relaxed);
+            let last_value = message_check_counter.fetch_add(1, Ordering::Relaxed);
 
-            current_value <= *count
+            last_value < *count
         }
         ReadLimit::ToDate(date) => message_value.timestamp.date_naive() <= *date,
     }
