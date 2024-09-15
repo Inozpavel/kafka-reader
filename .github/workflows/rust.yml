@@ -64,4 +64,4 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}
           secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            GIT_AUTH_TOKEN=${{ secrets.TOKEN }}
