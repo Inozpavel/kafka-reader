@@ -1,6 +1,6 @@
-FROM rust:1.81-slim as base
+FROM rust as base
 
-RUN apt update && yes | apt install protobuf-compiler gcc make
+RUN apt update && yes | apt install protobuf-compiler
 
 WORKDIR /src
 
@@ -18,4 +18,4 @@ COPY --from=base /src/appsettings.toml ./appsettings.toml
 COPY --from=base /src/target/release/kafka_reader_api ./kafka_reader_api
 
 ENV APP__PORT=80
-ENTRYPOINT ["kafka_reader_api"]
+ENTRYPOINT ["./kafka_reader_api"]
