@@ -1,7 +1,7 @@
 use crate::consumer::{
     AutoOffsetReset, ConsumerWrapper, KafkaMessage, MessageMetadata, PartitionOffset,
 };
-use crate::error::{ConsumeError, ConvertError};
+use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
     Format, ProtoConvertData, ReadMessagesRequest, StartFrom,
 };
@@ -9,17 +9,21 @@ use anyhow::{anyhow, bail, Context};
 use bytes::BytesMut;
 use chrono::Duration;
 use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorHolder};
-use rdkafka::consumer::{Consumer, StreamConsumer};
+use rdkafka::consumer::Consumer;
+use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
+use std::sync::{Arc, RwLock};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
+type ResultChannelItem = Result<Option<KafkaMessage>, ConvertError>;
+
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesRequest,
     cancellation_token: CancellationToken,
-) -> Result<Receiver<Result<Option<KafkaMessage>, ConvertError>>, anyhow::Error> {
+) -> Result<Receiver<ResultChannelItem>, anyhow::Error> {
     if request.brokers.is_empty() {
         bail!("No brokers specified")
     }
@@ -27,21 +31,25 @@ pub async fn run_read_messages_to_channel(
         StartFrom::Beginning | StartFrom::Today => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
-    let mut consumer_wrapper = ConsumerWrapper::create(&request.brokers, offset_reset)
+    let consumer_wrapper = ConsumerWrapper::create(&request.brokers, offset_reset)
         .context("While creating consumer")?;
+    let consumer_wrapper = Arc::new(consumer_wrapper);
 
-    let topic = request.topic.clone();
+    let request = Arc::new(request);
     consumer_wrapper
-        .subscribe(&[&topic])
+        .subscribe(&[&request.topic])
         .context("While subscribing to topic")?;
 
-    let mut preparer = None;
+    let holder = Arc::new(RwLock::new(None));
+    let topic = Arc::new(request.topic.clone());
     let (tx, rx) = tokio::sync::mpsc::channel(128);
 
     tokio::task::spawn(async move {
         loop {
+            let cancellation_token = cancellation_token.clone();
+            let holder = holder.clone();
             let message_result = select! {
-                msg = read_message(&consumer_wrapper, &request.format, &request.format, &mut preparer) => {
+                msg = consumer_wrapper.recv() => {
                     msg
                 }
                 _ = cancellation_token.cancelled() => {
@@ -50,57 +58,57 @@ pub async fn run_read_messages_to_channel(
                 }
             };
 
-            if let Err(()) =
-                handle_message_result(message_result, &tx, &topic, &mut consumer_wrapper).await
-            {
-                break;
+            let converted_message = match message_result {
+                Ok(message) => convert_message(message, &request.format, &request.format, holder),
+                Err(e) => {
+                    error!("Error while reading message from kafka consumer: {:?}", e);
+                    return;
+                }
             }
+            .await;
+
+            tokio::task::spawn(handle_message_result(
+                converted_message,
+                tx.clone(),
+                topic.clone(),
+                consumer_wrapper.clone(),
+                cancellation_token,
+            ));
         }
     });
 
     Ok(rx)
 }
 
-async fn read_message(
-    consumer: &StreamConsumer,
+async fn convert_message<'a>(
+    message: BorrowedMessage<'a>,
     key_format: &Format,
     body_format: &Format,
-    holder: &mut Option<ProtoDescriptorHolder>,
-) -> Result<Option<KafkaMessage>, ConsumeError> {
-    let msg = consumer
-        .recv()
-        .await
-        .context("While consuming message")
-        .map_err(ConsumeError::RdKafkaError)?;
-
-    let milliseconds = msg.timestamp().to_millis().unwrap_or(0);
+    holder: Arc<RwLock<Option<ProtoDescriptorHolder>>>,
+) -> ResultChannelItem {
+    let milliseconds = message.timestamp().to_millis().unwrap_or(0);
     let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::milliseconds(milliseconds);
 
-    let partition_offset = PartitionOffset::new(msg.partition(), msg.offset());
-
+    let partition_offset = PartitionOffset::new(message.partition(), message.offset());
     debug!(
         "New message. Topic: '{}', {:?}. ",
-        msg.topic(),
+        message.topic(),
         partition_offset
     );
 
-    let key_result = msg.key_view::<[u8]>();
-    let key = message_part_to_string("key", key_result, key_format, holder)
+    let key_result = message.key_view::<[u8]>();
+    let key = message_part_to_string("key", key_result, key_format, holder.clone())
         .await
-        .map_err(|e| {
-            ConsumeError::ConvertError(ConvertError {
-                error: e,
-                partition_offset,
-            })
+        .map_err(|e| ConvertError {
+            error: e,
+            partition_offset,
         })?;
-    let payload_result = msg.payload_view::<[u8]>();
+    let payload_result = message.payload_view::<[u8]>();
     let body = message_part_to_string("body", payload_result, body_format, holder)
         .await
-        .map_err(|e| {
-            ConsumeError::ConvertError(ConvertError {
-                error: e,
-                partition_offset,
-            })
+        .map_err(|e| ConvertError {
+            error: e,
+            partition_offset,
         })?;
 
     let message = KafkaMessage {
@@ -115,50 +123,41 @@ async fn read_message(
 }
 
 async fn handle_message_result(
-    message_result: Result<Option<KafkaMessage>, ConsumeError>,
-    tx: &Sender<Result<Option<KafkaMessage>, ConvertError>>,
-    topic: &str,
-    consumer_wrapper: &mut ConsumerWrapper,
-) -> Result<(), ()> {
+    message_result: ResultChannelItem,
+    tx: Sender<ResultChannelItem>,
+    topic: Arc<String>,
+    consumer_wrapper: Arc<ConsumerWrapper>,
+    cancellation_token: CancellationToken,
+) {
     match message_result {
         Ok(message) => {
             let metadata = MessageMetadata::from(&message);
             if let Err(e) = tx.send(Ok(message)).await {
                 error!(
-                    "Error while sending message to channel. Topic {}, metadata: {:?}. {:?}",
+                    "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
                     topic, metadata, e
                 );
-                return Err(());
+                cancellation_token.cancel();
             }
 
             if let Err(e) =
-                consumer_wrapper.store_offset(topic, metadata.partition(), metadata.offset())
+                consumer_wrapper.store_offset(&topic, metadata.partition(), metadata.offset())
             {
                 error!(
                     "Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",
                     topic, metadata, e
                 );
             }
-
-            Ok(())
         }
         Err(e) => {
-            match e {
-                ConsumeError::RdKafkaError(e) => {
-                    error!("Error while reading message from kafka consumer: {:?}", e)
-                }
-                ConsumeError::ConvertError(e) => {
-                    if let Err(e) = tx.send(Err(e)).await {
-                        error!(
-                            "Error while sending message to channel. Topic {}, metadata: {:?}",
-                            topic, e
-                        );
+            if let Err(e) = tx.send(Err(e)).await {
+                error!(
+                    "Error while sending error message to channel. Topic {}, error: {}",
+                    topic, e
+                );
 
-                        return Err(());
-                    }
-                }
+                cancellation_token.cancel();
             }
-            Ok(())
         }
     }
 }
@@ -167,7 +166,7 @@ async fn message_part_to_string(
     part_name: &'static str,
     part: Option<Result<&[u8], ()>>,
     format: &Format,
-    descriptor_holder: &mut Option<ProtoDescriptorHolder>,
+    descriptor_holder: Arc<RwLock<Option<ProtoDescriptorHolder>>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let Some(bytes_result) = part else {
         return Ok(None);
@@ -190,7 +189,7 @@ async fn message_part_to_string(
 async fn bytes_to_string(
     bytes: &[u8],
     format: &Format,
-    holder: &mut Option<ProtoDescriptorHolder>,
+    holder: Arc<RwLock<Option<ProtoDescriptorHolder>>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let converted = match format {
         Format::Ignore => Ok(None),
@@ -198,15 +197,20 @@ async fn bytes_to_string(
         Format::Hex => Ok(Some(format!("{:02X}", BytesMut::from(bytes)))),
         Format::Protobuf(ref convert) => match convert {
             ProtoConvertData::RawProto(proto_file) => {
-                if holder.is_none() {
-                    let new_descriptor_holder =
+                if holder.read().unwrap().is_none() {
+                    let mut new_descriptor_holder =
                         ProtoDescriptorHolder::from_single_file(proto_file.as_bytes())
                             .await
                             .context("While creating descriptor holder")?;
-                    *holder = Some(new_descriptor_holder);
+                    new_descriptor_holder
+                        .prepare()
+                        .await
+                        .context("While initializing ProtoDescriptorPreparer")?;
+                    *holder.write().unwrap() = Some(new_descriptor_holder);
                 }
-                let preparer = holder.as_mut().map(|x| x.preparer()).unwrap();
-                proto_bytes_to_json_string(bytes, preparer).await.map(Some)
+                let read_guard = holder.read().unwrap();
+                let preparer = read_guard.as_ref().unwrap();
+                proto_bytes_to_json_string(bytes, preparer).map(Some)
             }
         },
     }

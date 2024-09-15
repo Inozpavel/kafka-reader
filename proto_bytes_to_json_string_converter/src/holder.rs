@@ -1,5 +1,6 @@
 use crate::ProtoDescriptorPreparer;
 use anyhow::Context;
+use std::ops::{Deref, DerefMut};
 
 type PreparerPath = std::path::PathBuf;
 
@@ -22,8 +23,18 @@ impl ProtoDescriptorHolder {
         let preparer = ProtoDescriptorPreparer::new(path, vec![]);
         Ok(Self { temp_dir, preparer })
     }
+}
 
-    pub fn preparer(&mut self) -> &mut ProtoDescriptorPreparer<PreparerPath> {
+impl Deref for ProtoDescriptorHolder {
+    type Target = ProtoDescriptorPreparer<PreparerPath>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.preparer
+    }
+}
+
+impl DerefMut for ProtoDescriptorHolder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.preparer
     }
 }

@@ -6,15 +6,10 @@ use protobuf::MessageDyn;
 use protobuf_json_mapping::PrintOptions;
 use std::path::Path;
 
-pub async fn proto_bytes_to_json_string<T: AsRef<Path>>(
+pub fn proto_bytes_to_json_string<T: AsRef<Path>>(
     bytes: &[u8],
-    descriptor_preparer: &mut ProtoDescriptorPreparer<T>,
+    descriptor_preparer: &ProtoDescriptorPreparer<T>,
 ) -> Result<String, anyhow::Error> {
-    descriptor_preparer
-        .prepare()
-        .await
-        .context("While initializing ProtoDescriptorPreparer")?;
-
     let Some(file_descriptor_set) = descriptor_preparer.file_descriptor_set() else {
         bail!("ProtoMessageToJsonConverter wasn't initialized")
     };
