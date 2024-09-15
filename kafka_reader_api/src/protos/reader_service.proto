@@ -68,8 +68,9 @@ message ReadMessages {
     KafkaMessage kafka_message = 1;
   }
   message KafkaMessage{
-    google.protobuf.StringValue key = 1;
-    google.protobuf.StringValue body = 2;
-    map<string, string> headers = 3;
+    google.protobuf.Timestamp timestamp = 1;
+    google.protobuf.StringValue key = 2;
+    google.protobuf.StringValue body = 3;
+    map<string, string> headers = 4;
   }
 }

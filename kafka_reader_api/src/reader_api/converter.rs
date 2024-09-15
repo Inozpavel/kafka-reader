@@ -2,7 +2,8 @@ use super::*;
 
 use crate::reader_api::proto;
 use anyhow::anyhow;
-use chrono::DateTime;
+use chrono::{DateTime, Timelike};
+use prost_types::Timestamp;
 use kafka_reader::consumer::KafkaMessage;
 use kafka_reader::error::ConvertError;
 use kafka_reader::requests::read_messages_request::{
@@ -104,6 +105,10 @@ pub fn response_to_proto_response(
         }),
         Some(value) => Ok(proto::Response {
             kafka_message: Some(proto::KafkaMessage {
+                timestamp: Some(Timestamp {
+                    nanos: value.timestamp.nanosecond() as i32,
+                    seconds: value.timestamp.timestamp(),
+                }),
                 key: value.key.unwrap_or_else(|e| Some(format!("{:?}", e))),
                 body: value.body.unwrap_or_else(|e| Some(format!("{:?}", e))),
                 headers: value.headers.unwrap_or_default(),
