@@ -12,6 +12,7 @@ use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDesc
 use rdkafka::consumer::Consumer;
 use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -45,6 +46,7 @@ pub async fn run_read_messages_to_channel(
     let (tx, rx) = tokio::sync::mpsc::channel(128);
 
     tokio::task::spawn(async move {
+        let check_messages_counter = Arc::new(AtomicU64::new(0));
         loop {
             let cancellation_token = cancellation_token.clone();
             let holder = holder.clone();
@@ -73,6 +75,7 @@ pub async fn run_read_messages_to_channel(
                 tx.clone(),
                 topic.clone(),
                 consumer_wrapper.clone(),
+                check_messages_counter.clone(),
                 cancellation_token,
             ));
         }
@@ -98,14 +101,14 @@ async fn convert_message<'a>(
     );
 
     let key_result = message.key_view::<[u8]>();
-    let key = message_part_to_string("key", key_result, key_format, holder.clone())
+    let key = message_part_to_string("key", key_result, key_format, &holder)
         .await
         .map_err(|e| ConvertError {
             error: e,
             partition_offset,
         })?;
     let payload_result = message.payload_view::<[u8]>();
-    let body = message_part_to_string("body", payload_result, body_format, holder)
+    let body = message_part_to_string("body", payload_result, body_format, &holder)
         .await
         .map_err(|e| ConvertError {
             error: e,
@@ -129,13 +132,14 @@ async fn handle_message_result(
     tx: Sender<ResultChannelItem>,
     topic: Arc<String>,
     consumer_wrapper: Arc<ConsumerWrapper>,
+    message_check_counter: Arc<AtomicU64>,
     cancellation_token: CancellationToken,
 ) {
-    if !check_message_pass_start_condition(&message_result, &request.start_from) {
+    if !check_start_condition(&message_result, &request.start_from) {
         return;
     }
 
-    if !check_message_pass_limit_condition(&message_result, &request.limit) {
+    if !check_limit_condition(&message_check_counter, &message_result, &request.limit) {
         return;
     }
 
@@ -172,7 +176,7 @@ async fn handle_message_result(
     }
 }
 
-fn check_message_pass_start_condition(message: &ResultChannelItem, start_from: &StartFrom) -> bool {
+fn check_start_condition(message: &ResultChannelItem, start_from: &StartFrom) -> bool {
     let Ok(Some(message_value)) = message else {
         return true;
     };
@@ -182,14 +186,22 @@ fn check_message_pass_start_condition(message: &ResultChannelItem, start_from: &
     }
 }
 
-fn check_message_pass_limit_condition(message: &ResultChannelItem, limit: &ReadLimit) -> bool {
+fn check_limit_condition(
+    message_check_counter: &AtomicU64,
+    message: &ResultChannelItem,
+    limit: &ReadLimit,
+) -> bool {
     let Ok(Some(message_value)) = message else {
         return true;
     };
     match limit {
         ReadLimit::NoLimit => true,
-        ReadLimit::MessageCount(_) => false,
-        ReadLimit::ToDate(_) => false,
+        ReadLimit::MessageCount(count) => {
+            let current_value = message_check_counter.fetch_add(1, Ordering::Relaxed);
+
+            current_value <= *count
+        }
+        ReadLimit::ToDate(date) => message_value.timestamp.date_naive() <= *date,
     }
 }
 
@@ -197,7 +209,7 @@ async fn message_part_to_string(
     part_name: &'static str,
     part: Option<Result<&[u8], ()>>,
     format: &Format,
-    descriptor_holder: Arc<RwLock<Option<ProtoDescriptorHolder>>>,
+    descriptor_holder: &RwLock<Option<ProtoDescriptorHolder>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let Some(bytes_result) = part else {
         return Ok(None);
@@ -220,7 +232,7 @@ async fn message_part_to_string(
 async fn bytes_to_string(
     bytes: &[u8],
     format: &Format,
-    holder: Arc<RwLock<Option<ProtoDescriptorHolder>>>,
+    holder: &RwLock<Option<ProtoDescriptorHolder>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let converted = match format {
         Format::Ignore => Ok(None),

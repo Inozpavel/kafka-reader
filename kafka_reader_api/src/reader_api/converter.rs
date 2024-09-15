@@ -87,7 +87,7 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
             let proto_to_date = d.date.ok_or(anyhow!("To date limit can't be null"))?;
             let date = DateTime::from_timestamp(proto_to_date.seconds, proto_to_date.nanos as u32)
                 .ok_or(anyhow!("Can't convert datetime"))?;
-            ReadLimit::ToDate(date)
+            ReadLimit::ToDate(date.date_naive())
         }
     };
 
