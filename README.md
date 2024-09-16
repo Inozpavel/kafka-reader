@@ -1,6 +1,6 @@
 # kafka-reader
 
-Web api service for reading and filtering kafka messages in different formats
+Web api service for debugging, reading and filtering kafka messages in different formats
 
 ## Features
 
@@ -44,9 +44,9 @@ Supported security protocols:
 + Plaintext
 + Ssl
 
-## Build from surce
+## Build from source
 
-Local build on windows:
+### Windows
 
 ```bash
 git clone https://github.com/microsoft/vcpkg
@@ -61,5 +61,5 @@ vcpkg --triplet=x64-windows-static openssl
 
 vcpkg integrate install
 
-cargo run
+cargo run --release
 ```

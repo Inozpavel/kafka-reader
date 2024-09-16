@@ -1,6 +1,6 @@
 FROM rust as base
 
-RUN apt update && yes | apt install protobuf-compiler
+RUN apt update && yes | apt install protobuf-compiler cmake
 
 WORKDIR /src
 
