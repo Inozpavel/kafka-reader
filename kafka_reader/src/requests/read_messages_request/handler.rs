@@ -3,7 +3,7 @@ use crate::consumer::{
 };
 use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
-    FilterCondition, FilterKind, Format, ProtoConvertData, ReadLimit, ReadMessagesRequest,
+    FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesRequest,
     StartFrom, ValueFilter,
 };
 use anyhow::{anyhow, bail, Context};
@@ -273,11 +273,11 @@ async fn bytes_to_string(
         Format::String => Some(String::from_utf8_lossy(bytes).to_string()),
         Format::Hex => Some(format!("{:02X}", BytesMut::from(bytes))),
         Format::Base64 => Some(BASE64_STANDARD.encode(bytes)),
-        Format::Protobuf(ref convert) => match convert {
-            ProtoConvertData::RawProto(proto_file) => {
+        Format::Protobuf(ref protobuf_decode_way) => match protobuf_decode_way {
+            ProtobufDecodeWay::SingleProtoFile(single_proto_file) => {
                 if holder.read().expect("Panic in read scope").is_none() {
                     let mut new_descriptor_holder =
-                        ProtoDescriptorHolder::from_single_file(proto_file.as_bytes())
+                        ProtoDescriptorHolder::from_single_file(single_proto_file.file.as_bytes())
                             .await
                             .context("While creating descriptor holder")?;
                     new_descriptor_holder
@@ -288,8 +288,12 @@ async fn bytes_to_string(
                 }
                 let read_guard = holder.read().expect("Panic in read scope");
                 let preparer = read_guard.as_ref().unwrap();
-                let json = proto_bytes_to_json_string(bytes, preparer)
-                    .context("While converting proto bytes to json")?;
+                let json = proto_bytes_to_json_string(
+                    bytes,
+                    &single_proto_file.message_type_name,
+                    preparer,
+                )
+                .context("While converting proto bytes to json")?;
                 Some(json)
             }
         },

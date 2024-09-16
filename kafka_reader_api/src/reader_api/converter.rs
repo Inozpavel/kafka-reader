@@ -6,8 +6,8 @@ use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
 use kafka_reader::consumer::{KafkaMessage, SecurityProtocol};
 use kafka_reader::requests::read_messages_request::{
-    FilterCondition, FilterKind, Format, MessageTime, ProtoConvertData, ReadLimit,
-    ReadMessagesRequest, StartFrom, ValueFilter,
+    FilterCondition, FilterKind, Format, MessageTime, ProtobufDecodeWay, ReadLimit,
+    ReadMessagesRequest, SingleProtoFile, StartFrom, ValueFilter,
 };
 use regex::Regex;
 use tonic::Status;
@@ -110,7 +110,10 @@ fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format,
                 .ok_or(anyhow!("Protobuf format can't be none"))?
             {
                 proto::message_format::proto_format::DecodeWay::RawProtoFile(single_file) => {
-                    Format::Protobuf(ProtoConvertData::RawProto(single_file.file))
+                    Format::Protobuf(ProtobufDecodeWay::SingleProtoFile(SingleProtoFile {
+                        file: single_file.file,
+                        message_type_name: single_file.message_type_name,
+                    }))
                 }
             }
         }

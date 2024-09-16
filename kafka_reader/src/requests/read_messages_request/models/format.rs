@@ -4,10 +4,16 @@ pub enum Format {
     String,
     Hex,
     Base64,
-    Protobuf(ProtoConvertData),
+    Protobuf(ProtobufDecodeWay),
 }
 
 #[derive(Debug)]
-pub enum ProtoConvertData {
-    RawProto(String),
+pub enum ProtobufDecodeWay {
+    SingleProtoFile(SingleProtoFile),
+}
+
+#[derive(Debug)]
+pub struct SingleProtoFile {
+    pub message_type_name: String,
+    pub file: String,
 }

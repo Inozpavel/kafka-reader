@@ -41,7 +41,8 @@ message ReadMessages {
         SingleProtoFile raw_proto_file = 1;
       }
       message SingleProtoFile {
-        string file = 1;
+        string message_type_name = 1;
+        string file = 2;
       }
     }
   }
