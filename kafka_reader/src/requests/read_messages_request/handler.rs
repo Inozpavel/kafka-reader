@@ -33,8 +33,9 @@ pub async fn run_read_messages_to_channel(
         StartFrom::Beginning | StartFrom::Time(_) => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
-    let consumer_wrapper = ConsumerWrapper::create(&request.brokers, offset_reset, request.security_protocol)
-        .context("While creating consumer")?;
+    let consumer_wrapper =
+        ConsumerWrapper::create(&request.brokers, offset_reset, request.security_protocol)
+            .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
 
     let request = Arc::new(request);

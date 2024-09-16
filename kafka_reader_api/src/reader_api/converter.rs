@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::reader_api::proto;
+use crate::reader_api::proto::security_protocol::{PlaintextProtocol, Protocol};
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
 use kafka_reader::consumer::{KafkaMessage, SecurityProtocol};
@@ -10,7 +11,6 @@ use kafka_reader::requests::read_messages_request::{
 };
 use regex::Regex;
 use tonic::Status;
-use crate::reader_api::proto::security_protocol::{PlaintextProtocol, Protocol};
 
 pub fn proto_request_to_read_request(
     request: proto::Request,
@@ -40,11 +40,18 @@ pub fn proto_request_to_read_request(
     Ok(result)
 }
 
-fn proto_security_protocol_to_protocol(protocol: Option<ProtoSecurityProtocol>) -> SecurityProtocol {
-    let proto_protocol = protocol.and_then(|x| x.protocol).unwrap_or(ProtoSecurityProtocolVariant::Plaintext(PlaintextProtocol {}));
+fn proto_security_protocol_to_protocol(
+    protocol: Option<ProtoSecurityProtocol>,
+) -> SecurityProtocol {
+    let proto_protocol =
+        protocol
+            .and_then(|x| x.protocol)
+            .unwrap_or(ProtoSecurityProtocolVariant::Plaintext(
+                PlaintextProtocol {},
+            ));
     match proto_protocol {
         Protocol::Plaintext(_) => SecurityProtocol::Plaintext,
-        Protocol::Ssl(_) => SecurityProtocol::Ssl
+        Protocol::Ssl(_) => SecurityProtocol::Ssl,
     }
 }
 

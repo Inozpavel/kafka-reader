@@ -22,7 +22,7 @@ impl ConsumerWrapper {
 
         let protocol = match security_protocol {
             SecurityProtocol::Plaintext => "plaintext",
-            SecurityProtocol::Ssl => "ssl"
+            SecurityProtocol::Ssl => "ssl",
         };
         let brokers_string = brokers.join(",");
 
