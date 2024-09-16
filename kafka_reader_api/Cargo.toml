@@ -25,3 +25,7 @@ kafka_reader = { path = "../kafka_reader" }
 
 [build-dependencies]
 tonic-build = "0.12.2"
+
+[profile.release]
+lto = true
+codegen-units = 1
