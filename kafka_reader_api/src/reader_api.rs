@@ -13,6 +13,8 @@ use proto::MessageFormat as ProtoFormat;
 use proto::ReadLimit as ProtoReadLimit;
 use proto::StartFrom as ProtoStartFrom;
 use proto::ValueFilter as ProtoValueFilter;
+use proto::SecurityProtocol as ProtoSecurityProtocol;
+use proto::security_protocol::Protocol as ProtoSecurityProtocolVariant;
 
 pub mod proto {
     pub use kafka_reader_server::*;

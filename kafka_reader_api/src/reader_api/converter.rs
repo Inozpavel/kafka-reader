@@ -3,13 +3,14 @@ use super::*;
 use crate::reader_api::proto;
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
-use kafka_reader::consumer::KafkaMessage;
+use kafka_reader::consumer::{KafkaMessage, SecurityProtocol};
 use kafka_reader::requests::read_messages_request::{
     FilterCondition, FilterKind, Format, MessageTime, ProtoConvertData, ReadLimit,
     ReadMessagesRequest, StartFrom, ValueFilter,
 };
 use regex::Regex;
 use tonic::Status;
+use crate::reader_api::proto::security_protocol::{PlaintextProtocol, Protocol};
 
 pub fn proto_request_to_read_request(
     request: proto::Request,
@@ -22,6 +23,7 @@ pub fn proto_request_to_read_request(
 
     let start_from = proto_start_from_to_from(request.start_from)?;
     let limit = proto_limit_to_limit(request.limit)?;
+    let security_protocol = proto_security_protocol_to_protocol(request.security_protocol);
 
     let result = ReadMessagesRequest {
         topic: request.topic,
@@ -32,9 +34,18 @@ pub fn proto_request_to_read_request(
         body_value_filter,
         start_from,
         limit,
+        security_protocol,
     };
 
     Ok(result)
+}
+
+fn proto_security_protocol_to_protocol(protocol: Option<ProtoSecurityProtocol>) -> SecurityProtocol {
+    let proto_protocol = protocol.and_then(|x| x.protocol).unwrap_or(ProtoSecurityProtocolVariant::Plaintext(PlaintextProtocol {}));
+    match proto_protocol {
+        Protocol::Plaintext(_) => SecurityProtocol::Plaintext,
+        Protocol::Ssl(_) => SecurityProtocol::Ssl
+    }
 }
 
 fn proto_value_filter_to_filter(

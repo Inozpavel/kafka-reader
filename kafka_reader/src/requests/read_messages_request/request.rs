@@ -1,3 +1,4 @@
+use crate::consumer::SecurityProtocol;
 use crate::requests::read_messages_request::{Format, ReadLimit, StartFrom, ValueFilter};
 
 #[derive(Debug)]
@@ -10,4 +11,5 @@ pub struct ReadMessagesRequest {
     pub body_value_filter: Option<ValueFilter>,
     pub start_from: StartFrom,
     pub limit: ReadLimit,
+    pub security_protocol: SecurityProtocol,
 }

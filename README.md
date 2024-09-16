@@ -2,6 +2,8 @@
 
 Web api service for reading and filtering kafka messages in different formats
 
+## Features
+
 Service has grpc api with streaming endpoint for
 messages ([proto file contract](kafka_reader_api/src/protos/reader_service.proto)). Grpc service supports
 reflection
@@ -29,11 +31,35 @@ Supported topic read limit filters:
 
 Supported value filters for key and body:
 
-All can be filtered with regex or string
++ Filter kind
+    + String
+    + Regex
 
-Conditions:
++ Conditions:
+    + Contains
+    + Not contains
 
-+ Contains
-+ Not contains
+Supported security protocols:
 
-+ Not yet supported
++ Plaintext
++ Ssl
+
+## Build from surce
+
+Local build on windows:
+
+```bash
+git clone https://github.com/microsoft/vcpkg
+cd vcpkg
+.\bootstrap-vcpkg.bat
+
+# Add vcpkg.exe to system PATH variable
+
+vcpkg install librdkafka
+vcpkg install zlib
+vcpkg --triplet=x64-windows-static openssl
+
+vcpkg integrate install
+
+cargo run
+```

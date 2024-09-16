@@ -22,6 +22,7 @@ message ReadMessages {
     ReadLimit limit = 6;
     ValueFilter body_filter = 7;
     ValueFilter key_filter = 8;
+    SecurityProtocol security_protocol = 9;
   }
   message MessageFormat {
     oneof format {
@@ -94,11 +95,19 @@ message ReadMessages {
       google.protobuf.Timestamp time = 1;
     }
   }
+  message SecurityProtocol {
+    oneof protocol {
+      PlaintextProtocol plaintext = 1;
+      SslProtocol ssl = 2;
+    }
+    message PlaintextProtocol {};
+    message SslProtocol {};
+  }
 
   message Response {
     KafkaMessage kafka_message = 1;
   }
-  message KafkaMessage{
+  message KafkaMessage {
     google.protobuf.Timestamp timestamp = 1;
     google.protobuf.StringValue key = 2;
     google.protobuf.StringValue body = 3;
