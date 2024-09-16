@@ -30,8 +30,8 @@ pub fn proto_request_to_read_request(
         brokers: request.brokers,
         key_format,
         body_format,
-        key_value_filter,
-        body_value_filter,
+        key_filter: key_value_filter,
+        body_filter: body_value_filter,
         start_from,
         limit,
         security_protocol,
@@ -103,6 +103,7 @@ fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format,
         ProtoFormatVariant::Ignore(_) => Format::Ignore,
         ProtoFormatVariant::StringFormat(_) => Format::String,
         ProtoFormatVariant::HexFormat(_) => Format::Hex,
+        ProtoFormatVariant::Base64Format(_) => Format::Base64,
         ProtoFormatVariant::ProtoFormat(protobuf_data) => {
             match protobuf_data
                 .decode_way

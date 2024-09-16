@@ -7,6 +7,8 @@ use crate::requests::read_messages_request::{
     StartFrom, ValueFilter,
 };
 use anyhow::{anyhow, bail, Context};
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bytes::BytesMut;
 use chrono::Duration;
 use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorHolder};
@@ -145,12 +147,8 @@ async fn handle_message_result(
 
     if let Some(value) = &message {
         let filter_passed =
-            check_message_part_filter(value, |m| &m.key, request.key_value_filter.as_ref())
-                || check_message_part_filter(
-                    value,
-                    |m| &m.body,
-                    request.body_value_filter.as_ref(),
-                );
+            check_message_part_filter(value, |m| &m.key, request.key_filter.as_ref())
+                || check_message_part_filter(value, |m| &m.body, request.body_filter.as_ref());
 
         if !filter_passed {
             return;
@@ -271,12 +269,13 @@ async fn bytes_to_string(
     holder: &RwLock<Option<ProtoDescriptorHolder>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let converted = match format {
-        Format::Ignore => Ok(None),
-        Format::String => Ok(Some(String::from_utf8_lossy(bytes).to_string())),
-        Format::Hex => Ok(Some(format!("{:02X}", BytesMut::from(bytes)))),
+        Format::Ignore => None,
+        Format::String => Some(String::from_utf8_lossy(bytes).to_string()),
+        Format::Hex => Some(format!("{:02X}", BytesMut::from(bytes))),
+        Format::Base64 => Some(BASE64_STANDARD.encode(bytes)),
         Format::Protobuf(ref convert) => match convert {
             ProtoConvertData::RawProto(proto_file) => {
-                if holder.read().unwrap().is_none() {
+                if holder.read().expect("Panic in read scope").is_none() {
                     let mut new_descriptor_holder =
                         ProtoDescriptorHolder::from_single_file(proto_file.as_bytes())
                             .await
@@ -285,15 +284,16 @@ async fn bytes_to_string(
                         .prepare()
                         .await
                         .context("While initializing ProtoDescriptorPreparer")?;
-                    *holder.write().unwrap() = Some(new_descriptor_holder);
+                    *holder.write().expect("Panic in write scope") = Some(new_descriptor_holder);
                 }
-                let read_guard = holder.read().unwrap();
+                let read_guard = holder.read().expect("Panic in read scope");
                 let preparer = read_guard.as_ref().unwrap();
-                proto_bytes_to_json_string(bytes, preparer).map(Some)
+                let json = proto_bytes_to_json_string(bytes, preparer)
+                    .context("While converting proto bytes to json")?;
+                Some(json)
             }
         },
-    }
-    .context("While converting body")?;
+    };
 
     Ok(converted)
 }

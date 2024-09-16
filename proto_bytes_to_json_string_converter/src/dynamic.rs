@@ -26,8 +26,8 @@ pub fn proto_bytes_to_json_string<T: AsRef<Path>>(
         .parse_from_bytes(bytes)
         .context("While parsing dynamic proto message bytes")?;
 
-    let json =
-        proto_message_to_json_string(&*deserialized_message).context("Converting to json")?;
+    let json = proto_message_to_json_string(&*deserialized_message)
+        .context("While converting from dynamic descriptor to json")?;
 
     Ok(json)
 }

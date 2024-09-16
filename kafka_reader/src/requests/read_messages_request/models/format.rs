@@ -3,6 +3,7 @@ pub enum Format {
     Ignore,
     String,
     Hex,
+    Base64,
     Protobuf(ProtoConvertData),
 }
 
