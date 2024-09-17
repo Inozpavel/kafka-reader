@@ -6,18 +6,10 @@
 use anyhow::Context;
 use kafka_reader_api::app_config::AppConfig;
 use kafka_reader_api::startup::run_until_stopped;
-use prost::bytes::BytesMut;
-use tracing::info;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
-
-mod snazzy {
-    use tonic::include_proto;
-
-    include_proto!("snazzy.items");
-}
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -35,15 +27,6 @@ async fn main() -> Result<(), anyhow::Error> {
         .init();
 
     let config = AppConfig::build().context("While building app config")?;
-
-    let shirt = snazzy::Shirt {
-        size: 1,
-        color: "Blue".into(),
-    };
-
-    let mut serialized = BytesMut::new();
-    prost::Message::encode(&shirt, &mut serialized)?;
-    info!("Serialized: {:02X}", serialized);
 
     run_until_stopped(config).await?;
 

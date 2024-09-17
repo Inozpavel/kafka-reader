@@ -2,4 +2,3 @@
 members = ["kafka_reader", "kafka_reader_api", "proto_json_converter"]
 resolver = "2"
 
-

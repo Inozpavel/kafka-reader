@@ -10,7 +10,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(
             &[
                 "./src/protos/reader_service.proto",
-                "./src/protos/message.proto",
+                #[cfg(test)]
+                {
+                    "./tests/snazzy.proto"
+                },
             ],
             includes,
         )?;

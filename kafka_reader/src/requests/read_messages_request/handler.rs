@@ -21,6 +21,7 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
+use uuid::Uuid;
 
 type ChannelItem = Option<KafkaMessage>;
 
@@ -35,9 +36,14 @@ pub async fn run_read_messages_to_channel(
         StartFrom::Beginning | StartFrom::Time(_) => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
-    let consumer_wrapper =
-        ConsumerWrapper::create(&request.brokers, offset_reset, request.security_protocol)
-            .context("While creating consumer")?;
+    let group = format!("kafka-reader-{}", Uuid::now_v7());
+    let consumer_wrapper = ConsumerWrapper::create(
+        &request.brokers,
+        group,
+        offset_reset,
+        request.security_protocol,
+    )
+    .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
 
     let request = Arc::new(request);

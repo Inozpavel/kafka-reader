@@ -3,7 +3,6 @@ use anyhow::Context;
 use rdkafka::consumer::StreamConsumer;
 use rdkafka::ClientConfig;
 use std::ops::{Deref, DerefMut};
-use uuid::Uuid;
 
 pub struct ConsumerWrapper {
     consumer: StreamConsumer,
@@ -12,6 +11,7 @@ pub struct ConsumerWrapper {
 impl ConsumerWrapper {
     pub fn create(
         brokers: &[String],
+        group: String,
         auto_offset_reset: AutoOffsetReset,
         security_protocol: SecurityProtocol,
     ) -> Result<Self, anyhow::Error> {
@@ -30,7 +30,7 @@ impl ConsumerWrapper {
         let consumer: StreamConsumer = ClientConfig::new()
             .set("bootstrap.servers", brokers_string)
             .set("auto.offset.reset", offset_reset)
-            .set("group.id", Uuid::now_v7().to_string())
+            .set("group.id", group)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "10000")
             .set("enable.auto.commit", "true")
