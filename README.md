@@ -54,6 +54,8 @@ Environment variables:
 
 ## Build from source
 
+Install rust https://www.rust-lang.org/tools/install
+
 ### Windows
 
 ```bash
