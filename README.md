@@ -44,6 +44,14 @@ Supported security protocols:
 + Plaintext
 + Ssl
 
+## Settings
+
+Environment variables:
+
+`APP__HOST` - listener ip
+`APP__PORT` - listener port
+`RUST_LOG` = log level, format: https://docs.rs/env_logger/latest/env_logger/#enabling-logging
+
 ## Build from source
 
 ### Windows
@@ -61,5 +69,15 @@ vcpkg --triplet=x64-windows-static openssl
 
 vcpkg integrate install
 
-cargo run --release
+cargo build --release
 ```
+
+### Linux
+
+```bash
+sudo apt install opensll cmake
+
+cargo build --release
+```
+
+App will be available in ./target/release
