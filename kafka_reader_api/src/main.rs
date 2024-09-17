@@ -13,15 +13,17 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    let log_level = std::env::var("RUST_LOG").unwrap_or(
+        "info,kafka_reader_api,kafka_reader=trace,proto_json_converter=debug,prost_build=trace"
+            .to_owned(),
+    );
+
+    println!("Log level: {}", log_level);
     tracing_subscriber::registry()
         .with(
             EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
-                .parse_lossy(
-                    std::env::var("RUST_LOG")
-                        .unwrap_or("info,kafka_reader_api=debug,kafka_reader=debug,proto_json_converter=debug,prost_build=trace".to_owned())
-                        .as_str(),
-                ),
+                .parse_lossy(log_level),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();

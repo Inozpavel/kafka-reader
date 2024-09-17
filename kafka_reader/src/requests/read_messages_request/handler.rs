@@ -20,7 +20,7 @@ use std::sync::{Arc, RwLock};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{error, info, trace};
 use uuid::Uuid;
 
 type ChannelItem = Option<KafkaMessage>;
@@ -106,7 +106,7 @@ async fn convert_message<'a>(
     let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::milliseconds(milliseconds);
 
     let partition_offset = PartitionOffset::new(message.partition(), message.offset());
-    debug!(
+    trace!(
         "New message. Topic: '{}', {:?}. ",
         message.topic(),
         partition_offset

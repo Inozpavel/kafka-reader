@@ -12,8 +12,7 @@ FROM debian:bookworm-slim as release
 
 WORKDIR /app
 
-RUN apt update && yes | apt install protobuf-compiler
-
+COPY --from=base /usr/bin/protoc  /usr/bin/protoc
 COPY --from=base /src/appsettings.toml ./appsettings.toml
 COPY --from=base /src/target/release/kafka_reader_api ./kafka_reader_api
 
