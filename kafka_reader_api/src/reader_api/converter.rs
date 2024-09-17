@@ -107,7 +107,7 @@ fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format,
         ProtoFormatVariant::ProtoFormat(protobuf_data) => {
             match protobuf_data
                 .decode_way
-                .ok_or(anyhow!("Protobuf format can't be none"))?
+                .ok_or_else(|| anyhow!("Protobuf format can't be none"))?
             {
                 proto::message_format::proto_format::DecodeWay::RawProtoFile(single_file) => {
                     Format::Protobuf(ProtobufDecodeWay::SingleProtoFile(SingleProtoFile {
@@ -154,14 +154,13 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
         .unwrap_or(ProtoReadLimitVariant::NoLimit(
             proto::read_limit::NoLimit {},
         ));
-
     let limit = match proto_limit {
         ProtoReadLimitVariant::NoLimit(_) => ReadLimit::NoLimit,
         ProtoReadLimitVariant::MessageCount(c) => ReadLimit::MessageCount(c.count),
         proto::read_limit::Limit::ToTime(d) => {
             let time = d
                 .time
-                .ok_or(anyhow!("To date limit can't be null"))?
+                .ok_or_else(|| anyhow!("ToTime limit can't be null"))?
                 .to_date_time();
             ReadLimit::ToTime(time)
         }
@@ -179,6 +178,8 @@ pub fn response_to_proto_response(
         }),
         Some(value) => Ok(proto::Response {
             kafka_message: Some(proto::KafkaMessage {
+                partition: *value.partition_offset.partition(),
+                offset: *value.partition_offset.offset(),
                 timestamp: Some(value.timestamp.to_proto_timestamp()),
                 key: value.key.unwrap_or_else(|e| Some(format!("{:?}", e))),
                 body: value.body.unwrap_or_else(|e| Some(format!("{:?}", e))),
