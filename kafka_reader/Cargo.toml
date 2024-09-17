@@ -17,4 +17,4 @@ chrono = "0.4.38"
 regex = "1.10.6"
 base64 = "0.22.1"
 
-proto_bytes_to_json_string_converter = { path = "../proto_bytes_to_json_string_converter" }
+proto_json_converter = { path = "../proto_json_converter" }

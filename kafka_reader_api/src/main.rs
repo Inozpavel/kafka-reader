@@ -27,7 +27,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 .with_default_directive(LevelFilter::INFO.into())
                 .parse_lossy(
                     std::env::var("RUST_LOG")
-                        .unwrap_or("info,kafka_reader_api=debug,kafka_reader=debug,proto_bytes_to_json_string_converter=debug,prost_build=trace".to_owned())
+                        .unwrap_or("info,kafka_reader_api=debug,kafka_reader=debug,proto_json_converter=debug,prost_build=trace".to_owned())
                         .as_str(),
                 ),
         )
@@ -37,9 +37,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let config = AppConfig::build().context("While building app config")?;
 
     let shirt = snazzy::Shirt {
-        size: 26123,
-        color: "Red123".into(),
+        size: 1,
+        color: "Blue".into(),
     };
+
     let mut serialized = BytesMut::new();
     prost::Message::encode(&shirt, &mut serialized)?;
     info!("Serialized: {:02X}", serialized);

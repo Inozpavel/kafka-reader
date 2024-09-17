@@ -11,7 +11,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::BytesMut;
 use chrono::Duration;
-use proto_bytes_to_json_string_converter::{proto_bytes_to_json_string, ProtoDescriptorHolder};
+use proto_json_converter::{proto_bytes_to_json_string, ProtoDescriptorPreparer};
 use rdkafka::consumer::Consumer;
 use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
@@ -94,7 +94,7 @@ async fn convert_message<'a>(
     message: BorrowedMessage<'a>,
     key_format: &Format,
     body_format: &Format,
-    holder: Arc<RwLock<Option<ProtoDescriptorHolder>>>,
+    holder: Arc<RwLock<Option<ProtoDescriptorPreparer>>>,
 ) -> ChannelItem {
     let milliseconds = message.timestamp().to_millis().unwrap_or(0);
     let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::milliseconds(milliseconds);
@@ -243,7 +243,7 @@ async fn message_part_to_string(
     part_name: &'static str,
     part: Option<Result<&[u8], ()>>,
     format: &Format,
-    descriptor_holder: &RwLock<Option<ProtoDescriptorHolder>>,
+    descriptor_holder: &RwLock<Option<ProtoDescriptorPreparer>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let Some(bytes_result) = part else {
         return Ok(None);
@@ -266,7 +266,7 @@ async fn message_part_to_string(
 async fn bytes_to_string(
     bytes: &[u8],
     format: &Format,
-    holder: &RwLock<Option<ProtoDescriptorHolder>>,
+    holder: &RwLock<Option<ProtoDescriptorPreparer>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let converted = match format {
         Format::Ignore => None,
@@ -277,9 +277,7 @@ async fn bytes_to_string(
             ProtobufDecodeWay::SingleProtoFile(single_proto_file) => {
                 if holder.read().expect("Panic in read scope").is_none() {
                     let mut new_descriptor_holder =
-                        ProtoDescriptorHolder::from_single_file(single_proto_file.file.as_bytes())
-                            .await
-                            .context("While creating descriptor holder")?;
+                        ProtoDescriptorPreparer::new(single_proto_file.file.to_string(), vec![]);
                     new_descriptor_holder
                         .prepare()
                         .await

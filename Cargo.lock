@@ -507,6 +507,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
+name = "home"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3d1354bf6b7235cb4a0576c2619fd4ed18183f689b12b006a0ee7329eeff9a5"
+dependencies = [
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "http"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -693,7 +702,7 @@ dependencies = [
  "bytes",
  "chrono",
  "getset",
- "proto_bytes_to_json_string_converter",
+ "proto_json_converter",
  "rdkafka",
  "regex",
  "tempfile",
@@ -1141,16 +1150,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "proto_bytes_to_json_string_converter"
+name = "proto_json_converter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
  "protobuf",
  "protobuf-json-mapping",
+ "protobuf-parse",
  "tempfile",
  "tokio",
- "tonic-build",
 ]
 
 [[package]]
@@ -1173,6 +1182,22 @@ dependencies = [
  "protobuf",
  "protobuf-support",
  "thiserror",
+]
+
+[[package]]
+name = "protobuf-parse"
+version = "3.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b0e9b447d099ae2c4993c0cbb03c7a9d6c937b17f2d56cfc0b1550e6fcfdb76"
+dependencies = [
+ "anyhow",
+ "indexmap 2.5.0",
+ "log",
+ "protobuf",
+ "protobuf-support",
+ "tempfile",
+ "thiserror",
+ "which",
 ]
 
 [[package]]
@@ -1901,6 +1926,18 @@ name = "wasm-bindgen-shared"
 version = "0.2.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c62a0a307cb4a311d3a07867860911ca130c3494e8c2719593806c08bc5d0484"
+
+[[package]]
+name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix",
+]
 
 [[package]]
 name = "winapi"
