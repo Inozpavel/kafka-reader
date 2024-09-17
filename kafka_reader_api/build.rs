@@ -8,13 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_descriptor_set_path(out_dir.join("reader_service_descriptor.bin"))
         .build_client(false)
         .compile(
-            &[
-                "./src/protos/reader_service.proto",
-                #[cfg(test)]
-                {
-                    "./tests/snazzy.proto"
-                },
-            ],
+            &["./src/protos/reader_service.proto", "./tests/snazzy.proto"],
             includes,
         )?;
 
