@@ -26,13 +26,13 @@ message ReadMessages {
   }
   message MessageFormat {
     oneof format {
-      Ignore ignore = 1;
+      IgnoreFormat ignore_format = 1;
       StringFormat string_format = 2;
       HexFormat hex_format = 3;
       Base64Format base64_format = 4;
       ProtoFormat proto_format = 5;
     }
-    message Ignore {}
+    message IgnoreFormat {}
     message StringFormat {}
     message Base64Format {}
     message HexFormat {}

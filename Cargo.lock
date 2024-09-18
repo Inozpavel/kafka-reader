@@ -1160,6 +1160,8 @@ dependencies = [
  "protobuf-parse",
  "tempfile",
  "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

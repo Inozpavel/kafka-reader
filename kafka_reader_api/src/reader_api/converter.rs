@@ -95,12 +95,12 @@ fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format,
     let proto_format =
         message_format
             .and_then(|x| x.format)
-            .unwrap_or(ProtoFormatVariant::StringFormat(
-                proto::message_format::StringFormat {},
+            .unwrap_or(ProtoFormatVariant::IgnoreFormat(
+                proto::message_format::IgnoreFormat {},
             ));
 
     let format = match proto_format {
-        ProtoFormatVariant::Ignore(_) => Format::Ignore,
+        ProtoFormatVariant::IgnoreFormat(_) => Format::Ignore,
         ProtoFormatVariant::StringFormat(_) => Format::String,
         ProtoFormatVariant::HexFormat(_) => Format::Hex,
         ProtoFormatVariant::Base64Format(_) => Format::Base64,

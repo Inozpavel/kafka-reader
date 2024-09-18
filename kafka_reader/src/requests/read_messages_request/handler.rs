@@ -4,7 +4,7 @@ use crate::consumer::{
 use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
     FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesRequest,
-    StartFrom, ValueFilter,
+    SingleProtoFile, StartFrom, ValueFilter,
 };
 use anyhow::{anyhow, bail, Context};
 use base64::prelude::BASE64_STANDARD;
@@ -16,9 +16,10 @@ use rdkafka::consumer::Consumer;
 use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace};
 use uuid::Uuid;
@@ -111,7 +112,7 @@ async fn convert_message<'a>(
         message.topic(),
         partition_offset
     );
-
+    info!(?key_format, ?body_format);
     let key_result = message.key_view::<[u8]>();
     let key = message_part_to_string("key", key_result, key_format, &holder)
         .await
@@ -126,6 +127,7 @@ async fn convert_message<'a>(
             error: e,
             partition_offset,
         });
+    info!(?key, ?body);
 
     let message = KafkaMessage {
         partition_offset,
@@ -150,14 +152,15 @@ async fn handle_message_result(
     if !check_start_condition(&message, &request.start_from) {
         return;
     }
-
     if let Some(value) = &message {
-        let filter_passed =
-            check_message_part_filter(value, |m| &m.key, request.key_filter.as_ref())
-                || check_message_part_filter(value, |m| &m.body, request.body_filter.as_ref());
+        if request.key_filter.is_some() || request.body_filter.is_some() {
+            let filter_passed =
+                check_message_part_filter(value, |m| &m.key, request.key_filter.as_ref())
+                    || check_message_part_filter(value, |m| &m.body, request.body_filter.as_ref());
 
-        if !filter_passed {
-            return;
+            if !filter_passed {
+                return;
+            }
         }
     }
 
@@ -221,12 +224,12 @@ where
     F: Fn(&KafkaMessage) -> &Result<Option<String>, ConvertError>,
 {
     let Some(filter) = value_filter else {
-        return true;
+        return false;
     };
 
     let part = part_fn(message);
     let Ok(part) = part else {
-        return true;
+        return false;
     };
 
     let Some(value) = part else {
@@ -281,16 +284,12 @@ async fn bytes_to_string(
         Format::Base64 => Some(BASE64_STANDARD.encode(bytes)),
         Format::Protobuf(ref protobuf_decode_way) => match protobuf_decode_way {
             ProtobufDecodeWay::SingleProtoFile(single_proto_file) => {
-                if holder.read().expect("Panic in read scope").is_none() {
-                    let mut new_descriptor_holder =
-                        ProtoDescriptorPreparer::new(single_proto_file.file.to_string(), vec![]);
-                    new_descriptor_holder
-                        .prepare()
+                if holder.read().await.is_none() {
+                    create_holder(holder, single_proto_file)
                         .await
-                        .context("While initializing ProtoDescriptorPreparer")?;
-                    *holder.write().expect("Panic in write scope") = Some(new_descriptor_holder);
+                        .context("While creating ProtoDescriptorPreparer")?;
                 }
-                let read_guard = holder.read().expect("Panic in read scope");
+                let read_guard = holder.read().await;
                 let preparer = read_guard.as_ref().unwrap();
                 let json = proto_bytes_to_json_string(
                     bytes,
@@ -304,4 +303,24 @@ async fn bytes_to_string(
     };
 
     Ok(converted)
+}
+
+async fn create_holder(
+    holder: &RwLock<Option<ProtoDescriptorPreparer>>,
+    single_proto_file: &SingleProtoFile,
+) -> Result<(), anyhow::Error> {
+    let mut guard = holder.write().await;
+
+    if guard.is_some() {
+        return Ok(());
+    }
+    let mut new_descriptor_holder =
+        ProtoDescriptorPreparer::new(single_proto_file.file.to_string(), vec![]);
+    new_descriptor_holder
+        .prepare()
+        .await
+        .context("While initializing ProtoDescriptorPreparer")?;
+    *guard = Some(new_descriptor_holder);
+
+    Ok(())
 }

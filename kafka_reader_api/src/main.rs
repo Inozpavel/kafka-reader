@@ -14,7 +14,7 @@ use tracing_subscriber::EnvFilter;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let log_level = std::env::var("RUST_LOG").unwrap_or(
-        "info,kafka_reader_api,kafka_reader=trace,proto_json_converter=debug,prost_build=trace"
+        "info,kafka_reader_api,kafka_reader=trace,proto_json_converter=debug,prost_build=trace,protobuf_parse=trace"
             .to_owned(),
     );
 
