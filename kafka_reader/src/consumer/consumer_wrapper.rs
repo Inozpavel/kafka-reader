@@ -15,21 +15,12 @@ impl ConsumerWrapper {
         auto_offset_reset: AutoOffsetReset,
         security_protocol: SecurityProtocol,
     ) -> Result<Self, anyhow::Error> {
-        let offset_reset = match auto_offset_reset {
-            AutoOffsetReset::Earliest => "earliest",
-            AutoOffsetReset::Latest => "latest",
-        };
-
-        let protocol = match security_protocol {
-            SecurityProtocol::Plaintext => "plaintext",
-            SecurityProtocol::Ssl => "ssl",
-        };
         let brokers_string = brokers.join(",");
 
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
         let consumer: StreamConsumer = ClientConfig::new()
             .set("bootstrap.servers", brokers_string)
-            .set("auto.offset.reset", offset_reset)
+            .set("auto.offset.reset", auto_offset_reset.to_string())
             .set("group.id", group)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "10000")
@@ -38,10 +29,10 @@ impl ConsumerWrapper {
             .set("auto.commit.interval.ms", "4000")
             .set("message.max.bytes", "1000000000")
             .set("receive.message.max.bytes", "2147483647")
-            .set("security.protocol", protocol)
+            .set("security.protocol", security_protocol.to_string())
             // .set("debug", "")
             .create()
-            .context("While creating a Kafka client config file")?;
+            .context("While creating kafka StreamConsumer")?;
 
         Ok(Self { consumer })
     }

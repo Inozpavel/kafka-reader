@@ -1,5 +1,5 @@
 use crate::app_config::AppConfig;
-use crate::reader_api::{proto, ReaderService};
+use crate::kafka_api::{proto, KafkaService};
 use anyhow::Context;
 use tonic::transport::Server;
 use tracing::info;
@@ -18,7 +18,7 @@ pub async fn run_until_stopped(config: AppConfig) -> Result<(), anyhow::Error> {
 
     Server::builder()
         .add_service(service)
-        .add_service(proto::KafkaReaderServer::new(ReaderService))
+        .add_service(proto::KafkaServiceServer::new(KafkaService))
         .serve(address)
         .await
         .context("While listening service address")?;

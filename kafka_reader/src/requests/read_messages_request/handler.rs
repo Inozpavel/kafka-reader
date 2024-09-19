@@ -4,8 +4,9 @@ use crate::consumer::{
 use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
     FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesRequest,
-    SingleProtoFile, StartFrom, ValueFilter,
+    StartFrom, ValueFilter,
 };
+use crate::utils::create_holder;
 use anyhow::{anyhow, bail, Context};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -72,9 +73,12 @@ pub async fn run_read_messages_to_channel(
             };
 
             let converted_message = match message_result {
-                Ok(message) => {
-                    convert_message(message, &request.key_format, &request.body_format, holder)
-                }
+                Ok(message) => convert_message(
+                    message,
+                    request.key_format.as_ref(),
+                    request.body_format.as_ref(),
+                    holder,
+                ),
                 Err(e) => {
                     error!("Error while reading message from kafka consumer: {:?}", e);
                     return;
@@ -99,8 +103,8 @@ pub async fn run_read_messages_to_channel(
 
 async fn convert_message<'a>(
     message: BorrowedMessage<'a>,
-    key_format: &Format,
-    body_format: &Format,
+    key_format: Option<&Format>,
+    body_format: Option<&Format>,
     holder: Arc<RwLock<Option<ProtoDescriptorPreparer>>>,
 ) -> ChannelItem {
     let milliseconds = message.timestamp().to_millis().unwrap_or(0);
@@ -249,7 +253,7 @@ where
 async fn message_part_to_string(
     part_name: &'static str,
     part: Option<Result<&[u8], ()>>,
-    format: &Format,
+    format: Option<&Format>,
     descriptor_holder: &RwLock<Option<ProtoDescriptorPreparer>>,
 ) -> Result<Option<String>, anyhow::Error> {
     let Some(bytes_result) = part else {
@@ -272,23 +276,23 @@ async fn message_part_to_string(
 
 async fn bytes_to_string(
     bytes: &[u8],
-    format: &Format,
+    format: Option<&Format>,
     holder: &RwLock<Option<ProtoDescriptorPreparer>>,
 ) -> Result<Option<String>, anyhow::Error> {
+    let Some(format) = format else {
+        return Ok(None);
+    };
     let converted = match format {
-        Format::Ignore => None,
         Format::String => Some(String::from_utf8_lossy(bytes).to_string()),
         Format::Hex => Some(format!("{:02X}", BytesMut::from(bytes))),
         Format::Base64 => Some(BASE64_STANDARD.encode(bytes)),
         Format::Protobuf(ref protobuf_decode_way) => match protobuf_decode_way {
             ProtobufDecodeWay::SingleProtoFile(single_proto_file) => {
-                if holder.read().await.is_none() {
-                    create_holder(holder, single_proto_file)
-                        .await
-                        .context("While creating ProtoDescriptorPreparer")?;
-                }
+                create_holder(holder, single_proto_file)
+                    .await
+                    .context("While creating descriptor holder")?;
                 let read_guard = holder.read().await;
-                let preparer = read_guard.as_ref().unwrap();
+                let preparer = read_guard.as_ref().expect("Poisoned rwlock");
                 let json = proto_bytes_to_json_string(
                     bytes,
                     &single_proto_file.message_type_name,
@@ -301,24 +305,4 @@ async fn bytes_to_string(
     };
 
     Ok(converted)
-}
-
-async fn create_holder(
-    holder: &RwLock<Option<ProtoDescriptorPreparer>>,
-    single_proto_file: &SingleProtoFile,
-) -> Result<(), anyhow::Error> {
-    let mut guard = holder.write().await;
-
-    if guard.is_some() {
-        return Ok(());
-    }
-    let mut new_descriptor_holder =
-        ProtoDescriptorPreparer::new(single_proto_file.file.to_string(), vec![]);
-    new_descriptor_holder
-        .prepare()
-        .await
-        .context("While initializing ProtoDescriptorPreparer")?;
-    *guard = Some(new_descriptor_holder);
-
-    Ok(())
 }

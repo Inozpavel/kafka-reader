@@ -5,8 +5,8 @@ use crate::requests::read_messages_request::{Format, ReadLimit, StartFrom, Value
 pub struct ReadMessagesRequest {
     pub brokers: Vec<String>,
     pub topic: String,
-    pub key_format: Format,
-    pub body_format: Format,
+    pub key_format: Option<Format>,
+    pub body_format: Option<Format>,
     pub key_filter: Option<ValueFilter>,
     pub body_filter: Option<ValueFilter>,
     pub start_from: StartFrom,

@@ -8,8 +8,9 @@ option go_package = "kafka_reader_api";
 
 package kafka_reader_api;
 
-service KafkaReader {
+service KafkaService {
   rpc ReadMessages(ReadMessages.Request) returns (stream ReadMessages.Response);
+  rpc ProduceMessages(ProduceMessages.Request) returns (ProduceMessages.Response);
 }
 
 message ReadMessages {
@@ -23,28 +24,6 @@ message ReadMessages {
     ValueFilter body_filter = 7;
     ValueFilter key_filter = 8;
     SecurityProtocol security_protocol = 9;
-  }
-  message MessageFormat {
-    oneof format {
-      IgnoreFormat ignore_format = 1;
-      StringFormat string_format = 2;
-      HexFormat hex_format = 3;
-      Base64Format base64_format = 4;
-      ProtoFormat proto_format = 5;
-    }
-    message IgnoreFormat {}
-    message StringFormat {}
-    message Base64Format {}
-    message HexFormat {}
-    message ProtoFormat {
-      oneof decode_way {
-        SingleProtoFile raw_proto_file = 1;
-      }
-      message SingleProtoFile {
-        string message_type_name = 1;
-        string file = 2;
-      }
-    }
   }
   message StartFrom {
     oneof from {
@@ -98,14 +77,6 @@ message ReadMessages {
       google.protobuf.Timestamp time = 1;
     }
   }
-  message SecurityProtocol {
-    oneof protocol {
-      PlaintextProtocol plaintext = 1;
-      SslProtocol ssl = 2;
-    }
-    message PlaintextProtocol {};
-    message SslProtocol {};
-  }
 
   message Response {
     KafkaMessage kafka_message = 1;
@@ -118,4 +89,60 @@ message ReadMessages {
     google.protobuf.StringValue body = 5;
     map<string, string> headers = 6;
   }
+}
+
+message ProduceMessages {
+  message Request {
+    repeated string brokers = 1;
+    string topic = 2;
+    MessageFormat key_format = 3;
+    MessageFormat body_format = 4;
+    SecurityProtocol security_protocol = 5;
+    repeated ProduceMessage messages = 6;
+  }
+  message ProduceMessage {
+    google.protobuf.Int32Value partition = 1;
+    google.protobuf.StringValue key = 2;
+    google.protobuf.StringValue body = 3;
+    map<string, string> headers = 4;
+  }
+  message Response {
+    repeated DeliveryResult delivery_results = 1;
+  }
+
+  message DeliveryResult {
+    int32 partition = 1;
+    int64 offset = 2;
+    int64 error = 3;
+  }
+}
+
+message MessageFormat {
+  oneof format {
+    StringFormat string_format = 1;
+    HexFormat hex_format = 2;
+    Base64Format base64_format = 3;
+    ProtoFormat proto_format = 4;
+  }
+  message StringFormat {}
+  message Base64Format {}
+  message HexFormat {}
+  message ProtoFormat {
+    oneof decode_way {
+      SingleProtoFile raw_proto_file = 1;
+    }
+    message SingleProtoFile {
+      string message_type_name = 1;
+      string file = 2;
+    }
+  }
+}
+
+message SecurityProtocol {
+  oneof protocol {
+    PlaintextProtocol plaintext = 1;
+    SslProtocol ssl = 2;
+  }
+  message PlaintextProtocol {};
+  message SslProtocol {};
 }

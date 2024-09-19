@@ -6,6 +6,7 @@ pub use converter::*;
 
 use proto::filter_kind::Kind as ProtoFilterKindVariant;
 use proto::message_format::Format as ProtoFormatVariant;
+use proto::produce_messages::ProduceMessage as ProtoProduceMessage;
 use proto::read_limit::Limit as ProtoReadLimitVariant;
 use proto::security_protocol::Protocol as ProtoSecurityProtocolVariant;
 use proto::start_from::From as ProtoStartFromVariant;
@@ -17,7 +18,7 @@ use proto::StartFrom as ProtoStartFrom;
 use proto::ValueFilter as ProtoValueFilter;
 
 pub mod proto {
-    pub use kafka_reader_server::*;
+    pub use kafka_service_server::*;
     pub use read_messages::*;
     tonic::include_proto!("kafka_reader_api");
 

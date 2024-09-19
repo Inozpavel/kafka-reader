@@ -1,10 +1,11 @@
 use super::*;
 
-use crate::reader_api::proto;
-use crate::reader_api::proto::security_protocol::{PlaintextProtocol, Protocol};
+use crate::kafka_api::proto;
+use crate::kafka_api::proto::security_protocol::{PlaintextProtocol, Protocol};
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
 use kafka_reader::consumer::{KafkaMessage, SecurityProtocol};
+use kafka_reader::requests::produce_messages_request::{ProduceMessage, ProduceMessagesRequest};
 use kafka_reader::requests::read_messages_request::{
     FilterCondition, FilterKind, Format, MessageTime, ProtobufDecodeWay, ReadLimit,
     ReadMessagesRequest, SingleProtoFile, StartFrom, ValueFilter,
@@ -12,11 +13,13 @@ use kafka_reader::requests::read_messages_request::{
 use regex::Regex;
 use tonic::Status;
 
-pub fn proto_request_to_read_request(
-    request: proto::Request,
+pub fn proto_read_request_to_internal_request(
+    request: proto::read_messages::Request,
 ) -> Result<ReadMessagesRequest, anyhow::Error> {
-    let key_format = proto_format_to_format(request.key_format)?;
-    let body_format = proto_format_to_format(request.body_format)?;
+    let key_format =
+        proto_format_to_format(request.key_format).context("While converting key_format")?;
+    let body_format =
+        proto_format_to_format(request.body_format).context("While converting body_format")?;
 
     let key_value_filter = proto_value_filter_to_filter(request.key_filter)?;
     let body_value_filter = proto_value_filter_to_filter(request.body_filter)?;
@@ -38,6 +41,41 @@ pub fn proto_request_to_read_request(
     };
 
     Ok(result)
+}
+
+pub fn proto_produce_request_to_internal_request(
+    request: proto::produce_messages::Request,
+) -> Result<ProduceMessagesRequest, anyhow::Error> {
+    let key_format =
+        proto_format_to_format(request.key_format).context("While converting key_format")?;
+    let body_format =
+        proto_format_to_format(request.body_format).context("While converting body_format")?;
+
+    let security_protocol = proto_security_protocol_to_protocol(request.security_protocol);
+    let messages = request
+        .messages
+        .into_iter()
+        .map(proto_produce_message_to_internal_message)
+        .collect();
+    let result = ProduceMessagesRequest {
+        topic: request.topic,
+        brokers: request.brokers,
+        key_format,
+        body_format,
+        security_protocol,
+        messages,
+    };
+
+    Ok(result)
+}
+
+fn proto_produce_message_to_internal_message(model: ProtoProduceMessage) -> ProduceMessage {
+    ProduceMessage {
+        body: model.body,
+        key: model.key,
+        headers: model.headers,
+        partition: model.partition,
+    }
 }
 
 fn proto_security_protocol_to_protocol(
@@ -91,16 +129,17 @@ fn proto_value_filter_to_filter(
         filter_kind,
     }))
 }
-fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format, anyhow::Error> {
-    let proto_format =
-        message_format
-            .and_then(|x| x.format)
-            .unwrap_or(ProtoFormatVariant::IgnoreFormat(
-                proto::message_format::IgnoreFormat {},
-            ));
+fn proto_format_to_format(
+    message_format: Option<ProtoFormat>,
+) -> Result<Option<Format>, anyhow::Error> {
+    let Some(proto_format) = message_format else {
+        return Ok(None);
+    };
 
-    let format = match proto_format {
-        ProtoFormatVariant::IgnoreFormat(_) => Format::Ignore,
+    let Some(proto_format_variant) = proto_format.format else {
+        return Ok(None);
+    };
+    let format = match proto_format_variant {
         ProtoFormatVariant::StringFormat(_) => Format::String,
         ProtoFormatVariant::HexFormat(_) => Format::Hex,
         ProtoFormatVariant::Base64Format(_) => Format::Base64,
@@ -119,7 +158,7 @@ fn proto_format_to_format(message_format: Option<ProtoFormat>) -> Result<Format,
         }
     };
 
-    Ok(format)
+    Ok(Some(format))
 }
 
 fn proto_start_from_to_from(

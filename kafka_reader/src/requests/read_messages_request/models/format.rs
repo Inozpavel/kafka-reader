@@ -1,6 +1,5 @@
 #[derive(Debug)]
 pub enum Format {
-    Ignore,
     String,
     Hex,
     Base64,
