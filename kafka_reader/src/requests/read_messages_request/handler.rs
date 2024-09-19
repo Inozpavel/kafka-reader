@@ -112,7 +112,6 @@ async fn convert_message<'a>(
         message.topic(),
         partition_offset
     );
-    info!(?key_format, ?body_format);
     let key_result = message.key_view::<[u8]>();
     let key = message_part_to_string("key", key_result, key_format, &holder)
         .await
@@ -127,7 +126,6 @@ async fn convert_message<'a>(
             error: e,
             partition_offset,
         });
-    info!(?key, ?body);
 
     let message = KafkaMessage {
         partition_offset,
