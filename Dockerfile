@@ -12,7 +12,7 @@ FROM debian:bookworm-slim as release
 
 WORKDIR /app
 
-RUN apt update && apt install -y protobuf-compiler openssl
+RUN apt update && apt install -y protobuf-compiler
 
 COPY --from=base /src/appsettings.toml ./appsettings.toml
 COPY --from=base /src/target/release/kafka_reader_api ./kafka_reader_api
