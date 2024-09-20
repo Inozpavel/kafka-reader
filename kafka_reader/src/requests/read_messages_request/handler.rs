@@ -1,4 +1,6 @@
-use crate::consumer::{AutoOffsetReset, ConsumerWrapper, KafkaMessage, PartitionOffset};
+use crate::consumer::{
+    AutoOffsetReset, BrokerError, ConsumerWrapper, KafkaMessage, PartitionOffset, ReadResult,
+};
 use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
     FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesRequest,
@@ -9,21 +11,22 @@ use anyhow::{anyhow, bail, Context};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::BytesMut;
-use chrono::Duration;
 use proto_json_converter::{proto_bytes_to_json_string, ProtoDescriptorPreparer};
 use rdkafka::consumer::Consumer;
 use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace};
 use uuid::Uuid;
 
-type ChannelItem = KafkaMessage;
+type ChannelItem = ReadResult;
 
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesRequest,
@@ -55,8 +58,10 @@ pub async fn run_read_messages_to_channel(
     let topic = Arc::new(request.topic.clone());
     let (tx, rx) = tokio::sync::mpsc::channel(128);
 
+    let token = cancellation_token.clone();
     tokio::task::spawn(async move {
         let check_messages_counter = Arc::new(AtomicU64::new(0));
+        let read_messages_counter = Arc::new(AtomicU64::new(0));
         loop {
             let cancellation_token = cancellation_token.clone();
             let holder = holder.clone();
@@ -69,7 +74,9 @@ pub async fn run_read_messages_to_channel(
                     break
                 }
             };
-
+            if message_result.is_ok() {
+                read_messages_counter.fetch_add(1, Ordering::Relaxed);
+            };
             let converted_message = match message_result {
                 Ok(message) => convert_message(
                     message,
@@ -79,6 +86,11 @@ pub async fn run_read_messages_to_channel(
                 ),
                 Err(e) => {
                     error!("Error while reading message from kafka consumer: {:?}", e);
+                    let _ = tx
+                        .send(ChannelItem::BrokerError(BrokerError {
+                            message: format!("{:?}", e),
+                        }))
+                        .await;
                     return;
                 }
             }
@@ -96,6 +108,18 @@ pub async fn run_read_messages_to_channel(
         }
     });
 
+    tokio::task::spawn(async move {
+        loop {
+            select! {
+                _ = sleep(Duration::from_nanos(300)) => {
+
+                }
+                _ = token.cancelled() => {
+
+                }
+            }
+        }
+    });
     Ok(rx)
 }
 
@@ -104,9 +128,9 @@ async fn convert_message<'a>(
     key_format: Option<&Format>,
     body_format: Option<&Format>,
     holder: Arc<RwLock<Option<ProtoDescriptorPreparer>>>,
-) -> ChannelItem {
-    let milliseconds = message.timestamp().to_millis().unwrap_or(0);
-    let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::milliseconds(milliseconds);
+) -> KafkaMessage {
+    let milliseconds = message.timestamp().to_millis().unwrap_or(0).unsigned_abs();
+    let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::from_millis(milliseconds);
 
     let partition_offset = PartitionOffset::new(message.partition(), message.offset());
     trace!(
@@ -139,7 +163,7 @@ async fn convert_message<'a>(
 }
 
 async fn handle_message_result(
-    message: ChannelItem,
+    message: KafkaMessage,
     request: Arc<ReadMessagesRequest>,
     tx: Sender<ChannelItem>,
     topic: Arc<String>,
@@ -166,7 +190,7 @@ async fn handle_message_result(
     }
 
     let partition_offset = message.partition_offset;
-    if let Err(e) = tx.send(message).await {
+    if let Err(e) = tx.send(ReadResult::KafkaMessage(message)).await {
         error!(
             "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
             topic, partition_offset, e
@@ -186,7 +210,7 @@ async fn handle_message_result(
     }
 }
 
-fn check_start_condition(message: &ChannelItem, start_from: &StartFrom) -> bool {
+fn check_start_condition(message: &KafkaMessage, start_from: &StartFrom) -> bool {
     match start_from {
         StartFrom::Beginning | StartFrom::Latest => true,
         StartFrom::Time(time) => message.timestamp >= time.time(),
@@ -194,7 +218,7 @@ fn check_start_condition(message: &ChannelItem, start_from: &StartFrom) -> bool 
 }
 
 fn check_limit_condition(
-    message: &ChannelItem,
+    message: &KafkaMessage,
     message_check_counter: &AtomicU64,
     limit: &ReadLimit,
 ) -> bool {

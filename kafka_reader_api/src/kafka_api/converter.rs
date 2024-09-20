@@ -4,7 +4,7 @@ use crate::kafka_api::proto;
 use crate::kafka_api::proto::security_protocol::{PlaintextProtocol, Protocol};
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
-use kafka_reader::consumer::{KafkaMessage, SecurityProtocol};
+use kafka_reader::consumer::{ReadResult, SecurityProtocol};
 use kafka_reader::requests::produce_messages_request::{ProduceMessage, ProduceMessagesRequest};
 use kafka_reader::requests::read_messages_request::{
     FilterCondition, FilterKind, Format, MessageTime, ProtobufDecodeWay, ReadLimit,
@@ -208,17 +208,35 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
     Ok(limit)
 }
 
-pub fn response_to_proto_response(message: KafkaMessage) -> Result<proto::Response, Status> {
-    Ok(proto::Response {
-        response: Some(ProtoReadMessagesResponseVariant::KafkaMessage(
-            proto::KafkaMessage {
-                partition: *message.partition_offset.partition(),
-                offset: *message.partition_offset.offset(),
-                timestamp: Some(message.timestamp.to_proto_timestamp()),
-                key: message.key.unwrap_or_else(|e| Some(format!("{:?}", e))),
-                body: message.body.unwrap_or_else(|e| Some(format!("{:?}", e))),
-                headers: message.headers.unwrap_or_default(),
-            },
-        )),
+pub fn response_to_proto_response(read_result: ReadResult) -> Result<proto::Response, Status> {
+    let variant = match read_result {
+        ReadResult::KafkaMessage(kafka_message) => {
+            ProtoReadMessagesResponseVariant::KafkaMessage(proto::KafkaMessage {
+                partition: *kafka_message.partition_offset.partition(),
+                offset: *kafka_message.partition_offset.offset(),
+                timestamp: Some(kafka_message.timestamp.to_proto_timestamp()),
+                key: kafka_message
+                    .key
+                    .unwrap_or_else(|e| Some(format!("{:?}", e))),
+                body: kafka_message
+                    .body
+                    .unwrap_or_else(|e| Some(format!("{:?}", e))),
+                headers: kafka_message.headers.unwrap_or_default(),
+            })
+        }
+        ReadResult::MessagesCounters(message_counters) => {
+            ProtoReadMessagesResponseVariant::Counters(proto::MessagesCounters {
+                read_count: message_counters.read_message_count,
+                returned_count: message_counters.returned_message_count,
+            })
+        }
+        ReadResult::BrokerError(broker_error) => {
+            ProtoReadMessagesResponseVariant::BrokerError(proto::BrokerError {
+                message: format!("{:?}", broker_error.message),
+            })
+        }
+    };
+    Ok(ProtoReadMessagesResponse {
+        response: Some(variant),
     })
 }

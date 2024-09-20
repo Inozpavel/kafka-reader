@@ -95,6 +95,7 @@ message ReadMessages {
   }
   message MessagesCounters {
     uint64 read_count = 1;
+    uint64 returned_count = 2;
   }
   message BrokerError {
     string message = 1;

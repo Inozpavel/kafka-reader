@@ -9,6 +9,7 @@ use proto::message_format::Format as ProtoFormatVariant;
 use proto::produce_messages::ProduceMessage as ProtoProduceMessage;
 use proto::read_limit::Limit as ProtoReadLimitVariant;
 use proto::read_messages::response::Response as ProtoReadMessagesResponseVariant;
+use proto::read_messages::Response as ProtoReadMessagesResponse;
 use proto::security_protocol::Protocol as ProtoSecurityProtocolVariant;
 use proto::start_from::From as ProtoStartFromVariant;
 use proto::value_filter::condition::Condition as ProtoFilterCondition;
