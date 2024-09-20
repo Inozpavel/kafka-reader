@@ -208,22 +208,17 @@ fn proto_limit_to_limit(limit: Option<ProtoReadLimit>) -> Result<ReadLimit, anyh
     Ok(limit)
 }
 
-pub fn response_to_proto_response(
-    message: Option<KafkaMessage>,
-) -> Result<proto::Response, Status> {
-    match message {
-        None => Ok(proto::Response {
-            kafka_message: None,
-        }),
-        Some(value) => Ok(proto::Response {
-            kafka_message: Some(proto::KafkaMessage {
-                partition: *value.partition_offset.partition(),
-                offset: *value.partition_offset.offset(),
-                timestamp: Some(value.timestamp.to_proto_timestamp()),
-                key: value.key.unwrap_or_else(|e| Some(format!("{:?}", e))),
-                body: value.body.unwrap_or_else(|e| Some(format!("{:?}", e))),
-                headers: value.headers.unwrap_or_default(),
-            }),
-        }),
-    }
+pub fn response_to_proto_response(message: KafkaMessage) -> Result<proto::Response, Status> {
+    Ok(proto::Response {
+        response: Some(ProtoReadMessagesResponseVariant::KafkaMessage(
+            proto::KafkaMessage {
+                partition: *message.partition_offset.partition(),
+                offset: *message.partition_offset.offset(),
+                timestamp: Some(message.timestamp.to_proto_timestamp()),
+                key: message.key.unwrap_or_else(|e| Some(format!("{:?}", e))),
+                body: message.body.unwrap_or_else(|e| Some(format!("{:?}", e))),
+                headers: message.headers.unwrap_or_default(),
+            },
+        )),
+    })
 }

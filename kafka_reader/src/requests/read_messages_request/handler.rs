@@ -1,6 +1,4 @@
-use crate::consumer::{
-    AutoOffsetReset, ConsumerWrapper, KafkaMessage, MessageMetadata, PartitionOffset,
-};
+use crate::consumer::{AutoOffsetReset, ConsumerWrapper, KafkaMessage, PartitionOffset};
 use crate::error::ConvertError;
 use crate::requests::read_messages_request::{
     FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesRequest,
@@ -25,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace};
 use uuid::Uuid;
 
-type ChannelItem = Option<KafkaMessage>;
+type ChannelItem = KafkaMessage;
 
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesRequest,
@@ -131,15 +129,13 @@ async fn convert_message<'a>(
             partition_offset,
         });
 
-    let message = KafkaMessage {
+    KafkaMessage {
         partition_offset,
         timestamp,
         key,
         body,
         headers: None,
-    };
-
-    Some(message)
+    }
 }
 
 async fn handle_message_result(
@@ -154,15 +150,13 @@ async fn handle_message_result(
     if !check_start_condition(&message, &request.start_from) {
         return;
     }
-    if let Some(value) = &message {
-        if request.key_filter.is_some() || request.body_filter.is_some() {
-            let filter_passed =
-                check_message_part_filter(value, |m| &m.key, request.key_filter.as_ref())
-                    || check_message_part_filter(value, |m| &m.body, request.body_filter.as_ref());
+    if request.key_filter.is_some() || request.body_filter.is_some() {
+        let filter_passed =
+            check_message_part_filter(&message, |m| &m.key, request.key_filter.as_ref())
+                || check_message_part_filter(&message, |m| &m.body, request.body_filter.as_ref());
 
-            if !filter_passed {
-                return;
-            }
+        if !filter_passed {
+            return;
         }
     }
 
@@ -171,30 +165,31 @@ async fn handle_message_result(
         return;
     }
 
-    let metadata = MessageMetadata::from(&message);
+    let partition_offset = message.partition_offset;
     if let Err(e) = tx.send(message).await {
         error!(
             "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
-            topic, metadata, e
+            topic, partition_offset, e
         );
         cancellation_token.cancel();
     }
 
-    if let Err(e) = consumer_wrapper.store_offset(&topic, metadata.partition(), metadata.offset()) {
+    if let Err(e) = consumer_wrapper.store_offset(
+        &topic,
+        *partition_offset.partition(),
+        *partition_offset.offset(),
+    ) {
         error!(
             "Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",
-            topic, metadata, e
+            topic, partition_offset, e
         );
     }
 }
 
 fn check_start_condition(message: &ChannelItem, start_from: &StartFrom) -> bool {
-    let Some(message_value) = message else {
-        return true;
-    };
     match start_from {
         StartFrom::Beginning | StartFrom::Latest => true,
-        StartFrom::Time(time) => message_value.timestamp >= time.time(),
+        StartFrom::Time(time) => message.timestamp >= time.time(),
     }
 }
 
@@ -203,9 +198,6 @@ fn check_limit_condition(
     message_check_counter: &AtomicU64,
     limit: &ReadLimit,
 ) -> bool {
-    let Some(message_value) = message else {
-        return true;
-    };
     match limit {
         ReadLimit::NoLimit => true,
         ReadLimit::MessageCount(count) => {
@@ -213,7 +205,7 @@ fn check_limit_condition(
 
             last_value < *count
         }
-        ReadLimit::ToTime(date) => message_value.timestamp <= *date,
+        ReadLimit::ToTime(date) => message.timestamp <= *date,
     }
 }
 

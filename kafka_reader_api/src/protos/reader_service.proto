@@ -79,7 +79,11 @@ message ReadMessages {
   }
 
   message Response {
-    KafkaMessage kafka_message = 1;
+    oneof response {
+      KafkaMessage kafka_message = 1;
+      MessagesCounters counters = 2;
+      BrokerError broker_error = 3;
+    }
   }
   message KafkaMessage {
     int32 partition = 1;
@@ -88,6 +92,12 @@ message ReadMessages {
     google.protobuf.StringValue key = 4;
     google.protobuf.StringValue body = 5;
     map<string, string> headers = 6;
+  }
+  message MessagesCounters {
+    uint64 read_count = 1;
+  }
+  message BrokerError {
+    string message = 1;
   }
 }
 
