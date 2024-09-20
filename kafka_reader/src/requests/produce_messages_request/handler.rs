@@ -75,7 +75,7 @@ pub async fn produce_messages_to_topic(
         };
 
         match result {
-            Ok((partition, offset)) => {}
+            Ok((_partition, _offset)) => {}
             Err((kafka_error, message)) => {
                 error!(?kafka_error, ?message)
             }
