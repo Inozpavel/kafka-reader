@@ -1,6 +1,6 @@
 # kafka-reader
 
-Web api service for debugging, reading and filtering kafka messages in different formats
+Web api service for debugging, reading, producing and filtering kafka messages in different formats
 
 ## Features
 
@@ -38,6 +38,13 @@ Supported value filters for key and body:
 + Conditions:
     + Contains
     + Not contains
+
+Supported produce formats:
+
++ String
++ Base64
++ Hex
++ Protobuf
 
 Supported security protocols:
 
