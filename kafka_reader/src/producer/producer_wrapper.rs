@@ -17,6 +17,8 @@ impl ProducerWrapper {
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", servers)
             .set("security.protocol", security_protocol.to_string())
+            .set("message.timeout.ms", "5000")
+            .set("linger.ms", "0")
             // .set("debug", "")
             .create()
             .context("While creating a kafka FutureProducer")?;

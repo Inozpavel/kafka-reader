@@ -1,6 +1,6 @@
 use crate::producer::ProducerWrapper;
-use crate::requests::produce_messages_request::ProduceMessagesRequest;
-use crate::requests::read_messages_request::{Format, ProtobufDecodeWay};
+use crate::requests::produce_messages::ProduceMessagesCommandInternal;
+use crate::requests::read_messages::{Format, ProtobufDecodeWay};
 use crate::utils::create_holder;
 use anyhow::Context;
 use base64::prelude::BASE64_STANDARD;
@@ -15,7 +15,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 pub async fn produce_messages_to_topic(
-    request: ProduceMessagesRequest,
+    request: ProduceMessagesCommandInternal,
     cancellation_token: CancellationToken,
 ) -> Result<(), anyhow::Error> {
     let preparer = RwLock::new(None);
@@ -30,6 +30,7 @@ pub async fn produce_messages_to_topic(
         )
         .await
         .context("While converting key to bytes")?;
+
         let body_bytes = to_bytes(
             message.body,
             request.body_format.as_ref().unwrap_or(&Format::String),

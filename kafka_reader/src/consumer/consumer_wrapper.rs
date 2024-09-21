@@ -1,6 +1,6 @@
 use crate::consumer::{AutoOffsetReset, SecurityProtocol};
-use anyhow::Context;
 use rdkafka::consumer::StreamConsumer;
+use rdkafka::error::KafkaError;
 use rdkafka::ClientConfig;
 use std::ops::{Deref, DerefMut};
 
@@ -9,17 +9,14 @@ pub struct ConsumerWrapper {
 }
 
 impl ConsumerWrapper {
-    pub fn create(
+    pub fn create_for_consuming(
         brokers: &[String],
-        group: String,
+        group: &str,
         auto_offset_reset: AutoOffsetReset,
         security_protocol: SecurityProtocol,
-    ) -> Result<Self, anyhow::Error> {
-        let brokers_string = brokers.join(",");
-
+    ) -> Result<Self, KafkaError> {
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
-        let consumer: StreamConsumer = ClientConfig::new()
-            .set("bootstrap.servers", brokers_string)
+        let consumer: StreamConsumer = Self::create_common_config(brokers, security_protocol)
             .set("auto.offset.reset", auto_offset_reset.to_string())
             .set("group.id", group)
             .set("enable.partition.eof", "false")
@@ -29,12 +26,34 @@ impl ConsumerWrapper {
             .set("auto.commit.interval.ms", "4000")
             .set("message.max.bytes", "1000000000")
             .set("receive.message.max.bytes", "2147483647")
-            .set("security.protocol", security_protocol.to_string())
-            // .set("debug", "")
-            .create()
-            .context("While creating kafka StreamConsumer")?;
+            .create()?;
 
         Ok(Self { consumer })
+    }
+
+    pub fn create_for_non_consuming(
+        brokers: &[String],
+        security_protocol: SecurityProtocol,
+    ) -> Result<Self, KafkaError> {
+        let consumer: StreamConsumer =
+            Self::create_common_config(brokers, security_protocol).create()?;
+
+        Ok(Self { consumer })
+    }
+
+    fn create_common_config(
+        brokers: &[String],
+        security_protocol: SecurityProtocol,
+    ) -> ClientConfig {
+        let mut config = ClientConfig::new();
+
+        let brokers_string = brokers.join(",");
+        config
+            .set("bootstrap.servers", brokers_string)
+            // .set("debug", "")
+            .set("security.protocol", security_protocol.to_string());
+
+        config
     }
 }
 

@@ -1,8 +1,8 @@
 use crate::consumer::SecurityProtocol;
-use crate::requests::read_messages_request::{Format, ReadLimit, StartFrom, ValueFilter};
+use crate::requests::read_messages::{Format, ReadLimit, StartFrom, ValueFilter};
 
 #[derive(Debug)]
-pub struct ReadMessagesRequest {
+pub struct ReadMessagesQueryInternal {
     pub brokers: Vec<String>,
     pub topic: String,
     pub key_format: Option<Format>,

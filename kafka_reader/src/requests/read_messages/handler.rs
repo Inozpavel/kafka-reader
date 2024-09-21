@@ -2,8 +2,8 @@ use crate::consumer::{
     AutoOffsetReset, BrokerError, ConsumerWrapper, KafkaMessage, PartitionOffset, ReadResult,
 };
 use crate::error::ConvertError;
-use crate::requests::read_messages_request::{
-    FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesRequest,
+use crate::requests::read_messages::{
+    FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesQueryInternal,
     StartFrom, ValueFilter,
 };
 use crate::utils::create_holder;
@@ -29,7 +29,7 @@ use uuid::Uuid;
 type ChannelItem = ReadResult;
 
 pub async fn run_read_messages_to_channel(
-    request: ReadMessagesRequest,
+    request: ReadMessagesQueryInternal,
     cancellation_token: CancellationToken,
 ) -> Result<Receiver<ChannelItem>, anyhow::Error> {
     if request.brokers.is_empty() {
@@ -40,9 +40,9 @@ pub async fn run_read_messages_to_channel(
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
     let group = format!("kafka-reader-{}", Uuid::now_v7());
-    let consumer_wrapper = ConsumerWrapper::create(
+    let consumer_wrapper = ConsumerWrapper::create_for_consuming(
         &request.brokers,
-        group,
+        &group,
         offset_reset,
         request.security_protocol,
     )
@@ -164,7 +164,7 @@ async fn convert_message<'a>(
 
 async fn handle_message_result(
     message: KafkaMessage,
-    request: Arc<ReadMessagesRequest>,
+    request: Arc<ReadMessagesQueryInternal>,
     tx: Sender<ChannelItem>,
     topic: Arc<String>,
     consumer_wrapper: Arc<ConsumerWrapper>,

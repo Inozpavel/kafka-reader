@@ -1,9 +1,9 @@
 use crate::consumer::SecurityProtocol;
-use crate::requests::read_messages_request::Format;
+use crate::requests::read_messages::Format;
 use std::collections::HashMap;
 
 #[derive(Debug)]
-pub struct ProduceMessagesRequest {
+pub struct ProduceMessagesCommandInternal {
     pub brokers: Vec<String>,
     pub topic: String,
     pub key_format: Option<Format>,

@@ -1,4 +1,4 @@
-use crate::requests::read_messages_request::{FilterCondition, FilterKind};
+use crate::requests::read_messages::{FilterCondition, FilterKind};
 
 #[derive(Debug)]
 pub struct ValueFilter {

@@ -1,10 +1,22 @@
-use crate::kafka_api::converter::response_to_proto_response;
+use crate::kafka_api::converter::read_result_to_proto_response;
+use crate::kafka_api::proto::get_cluster_metadata::{
+    GetClusterMetadataQuery, GetClusterMetadataQueryResponse,
+};
+use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
+};
+use crate::kafka_api::proto::produce_messages::{
+    ProduceMessagesCommand, ProduceMessagesCommandResponse,
+};
+use crate::kafka_api::proto::{ReadMessagesQuery, ReadMessagesQueryResponse};
 use crate::kafka_api::{
-    proto, proto_produce_request_to_internal_request, proto_read_request_to_internal_request,
+    proto, proto_get_cluster_metadata_to_internal, proto_produce_messages_to_internal,
+    proto_read_messages_to_internal,
 };
 use crate::util::StreamDataExtension;
-use kafka_reader::requests::produce_messages_request::produce_messages_to_topic;
-use kafka_reader::requests::read_messages_request::run_read_messages_to_channel;
+use kafka_reader::requests::get_cluster_metadata::get_cluster_metadata;
+use kafka_reader::requests::produce_messages::produce_messages_to_topic;
+use kafka_reader::requests::read_messages::run_read_messages_to_channel;
 use tokio::select;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
@@ -17,16 +29,16 @@ pub struct KafkaService;
 #[tonic::async_trait]
 impl proto::KafkaService for KafkaService {
     type ReadMessagesStream =
-        Box<dyn Stream<Item = Result<proto::Response, Status>> + Send + Unpin>;
+        Box<dyn Stream<Item = Result<ReadMessagesQueryResponse, Status>> + Send + Unpin>;
 
     async fn read_messages(
         &self,
-        request: Request<proto::Request>,
+        request: Request<ReadMessagesQuery>,
     ) -> Result<Response<Self::ReadMessagesStream>, Status> {
         let proto_read_request = request.into_inner();
         debug!("New request: {:?}", proto_read_request);
 
-        let internal_request = proto_read_request_to_internal_request(proto_read_request)
+        let internal_request = proto_read_messages_to_internal(proto_read_request)
             .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
         debug!("Mapped request: {:?}", internal_request);
 
@@ -38,7 +50,7 @@ impl proto::KafkaService for KafkaService {
 
         match create_consumer_result {
             Ok(rx) => {
-                let map = ReceiverStream::new(rx).map(response_to_proto_response);
+                let map = ReceiverStream::new(rx).map(read_result_to_proto_response);
                 Ok(Response::new(Box::new(map.with_data(guard))))
             }
             Err(e) => Err(Status::invalid_argument(format!("{:?}", e))),
@@ -47,12 +59,12 @@ impl proto::KafkaService for KafkaService {
 
     async fn produce_messages(
         &self,
-        request: Request<proto::produce_messages::Request>,
-    ) -> Result<Response<proto::produce_messages::Response>, Status> {
+        request: Request<ProduceMessagesCommand>,
+    ) -> Result<Response<ProduceMessagesCommandResponse>, Status> {
         debug!("New request: {:?}", request);
         let proto_produce_request = request.into_inner();
 
-        let internal_request = proto_produce_request_to_internal_request(proto_produce_request)
+        let internal_request = proto_produce_messages_to_internal(proto_produce_request)
             .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
 
         debug!("Mapped request: {:?}", internal_request);
@@ -68,8 +80,30 @@ impl proto::KafkaService for KafkaService {
             }
         }
 
-        Ok(Response::new(proto::produce_messages::Response {
+        Ok(Response::new(ProduceMessagesCommandResponse {
             delivery_results: vec![],
         }))
+    }
+
+    async fn get_cluster_metadata(
+        &self,
+        request: Request<GetClusterMetadataQuery>,
+    ) -> Result<Response<GetClusterMetadataQueryResponse>, Status> {
+        let proto_request = request.into_inner();
+
+        let internal_request = proto_get_cluster_metadata_to_internal(proto_request);
+
+        let response = get_cluster_metadata(internal_request)
+            .await
+            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+
+        todo!()
+    }
+
+    async fn get_topic_partitions_with_offsets(
+        &self,
+        request: Request<GetTopicPartitionsWithOffsetsQuery>,
+    ) -> Result<Response<GetTopicPartitionsWithOffsetsQueryResponse>, Status> {
+        todo!()
     }
 }
