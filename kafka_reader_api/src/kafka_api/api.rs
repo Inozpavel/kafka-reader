@@ -14,9 +14,9 @@ use crate::kafka_api::{
     proto_produce_messages_to_internal, proto_read_messages_to_internal,
 };
 use crate::util::StreamDataExtension;
-use kafka_reader::requests::get_cluster_metadata::get_cluster_metadata;
-use kafka_reader::requests::produce_messages::produce_messages_to_topic;
-use kafka_reader::requests::read_messages::run_read_messages_to_channel;
+use kafka_reader::commands::produce_messages::produce_messages_to_topic;
+use kafka_reader::queries::get_cluster_metadata::get_cluster_metadata;
+use kafka_reader::queries::read_messages::run_read_messages_to_channel;
 use tokio::select;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};

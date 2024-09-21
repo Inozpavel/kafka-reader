@@ -1,5 +1,5 @@
 use crate::consumer::SecurityProtocol;
-use crate::requests::read_messages::{Format, ReadLimit, StartFrom, ValueFilter};
+use crate::queries::read_messages::{Format, ReadLimit, StartFrom, ValueFilter};
 
 #[derive(Debug)]
 pub struct ReadMessagesQueryInternal {

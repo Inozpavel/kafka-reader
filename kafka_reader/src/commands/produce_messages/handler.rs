@@ -1,6 +1,6 @@
+use crate::commands::produce_messages::ProduceMessagesCommandInternal;
 use crate::producer::ProducerWrapper;
-use crate::requests::produce_messages::ProduceMessagesCommandInternal;
-use crate::requests::read_messages::{Format, ProtobufDecodeWay};
+use crate::queries::read_messages::{Format, ProtobufDecodeWay};
 use crate::utils::create_holder;
 use anyhow::Context;
 use base64::prelude::BASE64_STANDARD;

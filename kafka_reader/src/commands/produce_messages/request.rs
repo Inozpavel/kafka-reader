@@ -1,5 +1,5 @@
 use crate::consumer::SecurityProtocol;
-use crate::requests::read_messages::Format;
+use crate::queries::read_messages::Format;
 use std::collections::HashMap;
 
 #[derive(Debug)]

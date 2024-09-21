@@ -1,4 +1,4 @@
-use crate::requests::read_messages::SingleProtoFile;
+use crate::queries::read_messages::SingleProtoFile;
 use anyhow::Context;
 use proto_json_converter::ProtoDescriptorPreparer;
 use tokio::sync::RwLock;

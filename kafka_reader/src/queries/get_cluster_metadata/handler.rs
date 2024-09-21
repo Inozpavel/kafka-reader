@@ -1,6 +1,6 @@
 use crate::consumer::metadata::{BrokerMetadata, KafkaClusterMetadata, KafkaTopicMetadata};
 use crate::consumer::ConsumerWrapper;
-use crate::requests::get_cluster_metadata::request::GetClusterMetadataQueryInternal;
+use crate::queries::get_cluster_metadata::request::GetClusterMetadataQueryInternal;
 use anyhow::Context;
 use rdkafka::consumer::Consumer;
 use rdkafka::util::Timeout;

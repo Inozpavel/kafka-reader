@@ -17,11 +17,11 @@ use crate::kafka_api::proto::{
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
 
+use kafka_reader::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
 use kafka_reader::consumer::metadata::KafkaClusterMetadata;
 use kafka_reader::consumer::{ReadResult, SecurityProtocol};
-use kafka_reader::requests::get_cluster_metadata::GetClusterMetadataQueryInternal;
-use kafka_reader::requests::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
-use kafka_reader::requests::read_messages::{
+use kafka_reader::queries::get_cluster_metadata::GetClusterMetadataQueryInternal;
+use kafka_reader::queries::read_messages::{
     FilterCondition, FilterKind, Format, MessageTime, ProtobufDecodeWay, ReadLimit,
     ReadMessagesQueryInternal, SingleProtoFile, StartFrom, ValueFilter,
 };
