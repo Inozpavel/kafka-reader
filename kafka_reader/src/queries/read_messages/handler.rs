@@ -60,6 +60,7 @@ pub async fn run_read_messages_to_channel(
     let token = cancellation_token.clone();
     let returned_messages_counter = Arc::new(AtomicU64::new(0));
     let read_messages_counter = Arc::new(AtomicU64::new(0));
+    let message_count_check_counter = Arc::new(AtomicU64::new(0));
 
     let read_messages_counter_copy = read_messages_counter.clone();
     let returned_messages_counter_copy = returned_messages_counter.clone();
@@ -106,6 +107,7 @@ pub async fn run_read_messages_to_channel(
                 topic.clone(),
                 consumer_wrapper.clone(),
                 returned_messages_counter.clone(),
+                message_count_check_counter.clone(),
                 cancellation_token,
             ));
         }
@@ -183,6 +185,7 @@ async fn handle_message_result(
     tx: Sender<ChannelItem>,
     topic: Arc<String>,
     consumer_wrapper: Arc<ConsumerWrapper>,
+    returned_messages_counter: Arc<AtomicU64>,
     message_check_counter: Arc<AtomicU64>,
     cancellation_token: CancellationToken,
 ) {
@@ -205,16 +208,22 @@ async fn handle_message_result(
     }
 
     let partition_offset = message.partition_offset;
-    if let Err(e) = tx
+
+    match tx
         .send(ReadMessagesQueryInternalResponse::KafkaMessage(message))
         .await
     {
-        error!(
-            "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
-            topic, partition_offset, e
-        );
-        cancellation_token.cancel();
-    }
+        Ok(_) => {
+            returned_messages_counter.fetch_add(1, Ordering::Relaxed);
+        }
+        Err(e) => {
+            error!(
+                "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
+                topic, partition_offset, e
+            );
+            cancellation_token.cancel();
+        }
+    };
 
     if let Err(e) = consumer_wrapper.store_offset(
         &topic,
