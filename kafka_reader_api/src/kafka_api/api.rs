@@ -26,6 +26,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
 
+#[derive(Debug)]
 pub struct KafkaService;
 
 #[tonic::async_trait]
@@ -33,6 +34,7 @@ impl proto::KafkaService for KafkaService {
     type ReadMessagesStream =
         Box<dyn Stream<Item = Result<ReadMessagesQueryResponse, Status>> + Send + Unpin>;
 
+    #[tracing::instrument(skip_all)]
     async fn read_messages(
         &self,
         request: Request<ReadMessagesQuery>,
@@ -58,6 +60,7 @@ impl proto::KafkaService for KafkaService {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn produce_messages(
         &self,
         request: Request<ProduceMessagesCommand>,
@@ -86,6 +89,7 @@ impl proto::KafkaService for KafkaService {
         }))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_cluster_metadata(
         &self,
         request: Request<GetClusterMetadataQuery>,
@@ -103,6 +107,7 @@ impl proto::KafkaService for KafkaService {
         Ok(Response::new(proto_response))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_topic_partitions_with_offsets(
         &self,
         request: Request<GetTopicPartitionsWithOffsetsQuery>,
