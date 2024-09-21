@@ -1,6 +1,4 @@
-use crate::consumer::{
-    AutoOffsetReset, BrokerError, ConsumerWrapper, KafkaMessage, PartitionOffset, ReadResult,
-};
+use crate::consumer::{AutoOffsetReset, BrokerError, ConsumerWrapper, KafkaMessage, MessagesCounters, PartitionOffset, ReadResult};
 use crate::error::ConvertError;
 use crate::queries::read_messages::{
     FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesQueryInternal,
@@ -46,7 +44,7 @@ pub async fn run_read_messages_to_channel(
         offset_reset,
         request.security_protocol,
     )
-    .context("While creating consumer")?;
+        .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
 
     let request = Arc::new(request);
@@ -59,9 +57,13 @@ pub async fn run_read_messages_to_channel(
     let (tx, rx) = tokio::sync::mpsc::channel(128);
 
     let token = cancellation_token.clone();
+    let returned_messages_counter = Arc::new(AtomicU64::new(0));
+    let read_messages_counter = Arc::new(AtomicU64::new(0));
+
+    let read_messages_counter_copy = read_messages_counter.clone();
+    let returned_messages_counter_copy = returned_messages_counter.clone();
+    let tx_copy = tx.clone();
     tokio::task::spawn(async move {
-        let check_messages_counter = Arc::new(AtomicU64::new(0));
-        let read_messages_counter = Arc::new(AtomicU64::new(0));
         loop {
             let cancellation_token = cancellation_token.clone();
             let holder = holder.clone();
@@ -94,7 +96,7 @@ pub async fn run_read_messages_to_channel(
                     return;
                 }
             }
-            .await;
+                .await;
 
             tokio::task::spawn(handle_message_result(
                 converted_message,
@@ -102,20 +104,32 @@ pub async fn run_read_messages_to_channel(
                 tx.clone(),
                 topic.clone(),
                 consumer_wrapper.clone(),
-                check_messages_counter.clone(),
+                returned_messages_counter.clone(),
                 cancellation_token,
             ));
         }
     });
 
     tokio::task::spawn(async move {
+        let mut last_counter = MessagesCounters {
+            returned_message_count: 0,
+            read_message_count: 0,
+        };
         loop {
             select! {
-                _ = sleep(Duration::from_nanos(300)) => {
+                _ = sleep(Duration::from_millis(500)) => {
+                     let counter = MessagesCounters {
+                        read_message_count: read_messages_counter_copy.load(Ordering::Relaxed),
+                        returned_message_count: returned_messages_counter_copy.load(Ordering::Relaxed),
+                    };
+                    if last_counter != counter {
+                        last_counter = counter;
+                        let _ = tx_copy.send(ChannelItem::MessagesCounters(counter)).await;
+                    }
 
-                }
+                },
                 _ = token.cancelled() => {
-
+                    break;
                 }
             }
         }
@@ -314,7 +328,7 @@ async fn bytes_to_string(
                     &single_proto_file.message_type_name,
                     preparer,
                 )
-                .context("While converting proto bytes to json")?;
+                    .context("While converting proto bytes to json")?;
                 Some(json)
             }
         },

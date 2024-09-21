@@ -19,7 +19,7 @@ pub struct KafkaMessage {
     pub headers: Option<HashMap<String, String>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct MessagesCounters {
     pub read_message_count: u64,
     pub returned_message_count: u64,
