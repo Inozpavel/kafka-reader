@@ -1,6 +1,8 @@
-use crate::consumer::metadata::{BrokerMetadata, KafkaClusterMetadata, KafkaTopicMetadata};
 use crate::consumer::ConsumerWrapper;
 use crate::queries::get_cluster_metadata::request::GetClusterMetadataQueryInternal;
+use crate::queries::get_cluster_metadata::response::{
+    BrokerMetadata, GetClusterMetadataQueryInternalResponse, KafkaTopicMetadata,
+};
 use anyhow::Context;
 use rdkafka::consumer::Consumer;
 use rdkafka::util::Timeout;
@@ -8,7 +10,7 @@ use std::time::Duration;
 
 pub async fn get_cluster_metadata(
     request: GetClusterMetadataQueryInternal,
-) -> Result<KafkaClusterMetadata, anyhow::Error> {
+) -> Result<GetClusterMetadataQueryInternalResponse, anyhow::Error> {
     let client =
         ConsumerWrapper::create_for_non_consuming(&request.brokers, request.security_protocol)
             .context("While creating admin client")?;
@@ -35,7 +37,7 @@ pub async fn get_cluster_metadata(
             })
             .collect::<Vec<_>>();
 
-        let metadata = KafkaClusterMetadata { topics, brokers };
+        let metadata = GetClusterMetadataQueryInternalResponse { topics, brokers };
         Result::<_, anyhow::Error>::Ok(metadata)
     });
 

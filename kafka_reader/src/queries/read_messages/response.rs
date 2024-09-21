@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
 #[derive(Debug)]
-pub enum ReadResult {
+pub enum ReadMessagesQueryInternalResponse {
     KafkaMessage(KafkaMessage),
     MessagesCounters(MessagesCounters),
     BrokerError(BrokerError),

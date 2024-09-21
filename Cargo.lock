@@ -728,6 +728,7 @@ dependencies = [
  "chrono",
  "getset",
  "proto_json_converter",
+ "rayon",
  "rdkafka",
  "regex",
  "tempfile",

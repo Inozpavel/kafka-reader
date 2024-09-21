@@ -182,15 +182,18 @@ message GetClusterMetadata {
 
 message GetTopicPartitionsWithOffsets {
   message GetTopicPartitionsWithOffsetsQuery {
-    string topic = 1;
+    repeated string brokers = 1;
+    SecurityProtocolDto security_protocol = 2;
+    string topic = 3;
   }
 
   message GetTopicPartitionsWithOffsetsQueryResponse {
     repeated PartitionDataWatermarksDto partitions = 1;
   }
   message PartitionDataWatermarksDto {
-    uint64 low = 1;
-    uint64 high = 2;
-    uint64 messages_count = 3;
+    int32 id = 1;
+    int64 min_offset = 2;
+    int64 max_offset = 3;
+    int64 messages_count = 5;
   }
 }

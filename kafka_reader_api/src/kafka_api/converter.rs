@@ -17,13 +17,22 @@ use crate::kafka_api::proto::{
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
 
+use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
+    PartitionDataWatermarksDto,
+};
 use kafka_reader::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
-use kafka_reader::consumer::metadata::KafkaClusterMetadata;
-use kafka_reader::consumer::{ReadResult, SecurityProtocol};
-use kafka_reader::queries::get_cluster_metadata::GetClusterMetadataQueryInternal;
+use kafka_reader::consumer::SecurityProtocol;
+use kafka_reader::queries::get_cluster_metadata::{
+    GetClusterMetadataQueryInternal, GetClusterMetadataQueryInternalResponse,
+};
+use kafka_reader::queries::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQueryInternal, GetTopicPartitionsWithOffsetsQueryResponseInternal,
+};
 use kafka_reader::queries::read_messages::{
     FilterCondition, FilterKind, Format, MessageTime, ProtobufDecodeWay, ReadLimit,
-    ReadMessagesQueryInternal, SingleProtoFile, StartFrom, ValueFilter,
+    ReadMessagesQueryInternal, ReadMessagesQueryInternalResponse, SingleProtoFile, StartFrom,
+    ValueFilter,
 };
 use rayon::prelude::*;
 use regex::Regex;
@@ -92,6 +101,17 @@ pub fn proto_get_cluster_metadata_to_internal(
     GetClusterMetadataQueryInternal {
         brokers: model.brokers,
         security_protocol,
+    }
+}
+
+pub fn proto_get_topic_partition_offsets_internal(
+    model: GetTopicPartitionsWithOffsetsQuery,
+) -> GetTopicPartitionsWithOffsetsQueryInternal {
+    let protocol = proto_security_protocol_to_protocol(model.security_protocol);
+    GetTopicPartitionsWithOffsetsQueryInternal {
+        brokers: model.brokers,
+        security_protocol: protocol,
+        topic: model.topic,
     }
 }
 
@@ -226,10 +246,10 @@ fn proto_limit_to_limit(model: Option<ReadLimitDto>) -> Result<ReadLimit, anyhow
 }
 
 pub fn read_result_to_proto_response(
-    model: ReadResult,
+    model: ReadMessagesQueryInternalResponse,
 ) -> Result<ReadMessagesQueryResponse, Status> {
     let variant = match model {
-        ReadResult::KafkaMessage(kafka_message) => {
+        ReadMessagesQueryInternalResponse::KafkaMessage(kafka_message) => {
             read_messages_query_response::Response::KafkaMessage(proto::KafkaMessageDto {
                 partition: *kafka_message.partition_offset.partition(),
                 offset: *kafka_message.partition_offset.offset(),
@@ -243,13 +263,13 @@ pub fn read_result_to_proto_response(
                 headers: kafka_message.headers.unwrap_or_default(),
             })
         }
-        ReadResult::MessagesCounters(message_counters) => {
+        ReadMessagesQueryInternalResponse::MessagesCounters(message_counters) => {
             read_messages_query_response::Response::Counters(proto::MessagesCountersDto {
                 read_count: message_counters.read_message_count,
                 returned_count: message_counters.returned_message_count,
             })
         }
-        ReadResult::BrokerError(broker_error) => {
+        ReadMessagesQueryInternalResponse::BrokerError(broker_error) => {
             read_messages_query_response::Response::BrokerError(proto::BrokerErrorDto {
                 message: format!("{:?}", broker_error.message),
             })
@@ -261,9 +281,9 @@ pub fn read_result_to_proto_response(
 }
 
 pub fn kafka_cluster_metadata_to_proto_response(
-    metadata: KafkaClusterMetadata,
+    model: GetClusterMetadataQueryInternalResponse,
 ) -> GetClusterMetadataQueryResponse {
-    let brokers = metadata
+    let brokers = model
         .brokers
         .into_par_iter()
         .map(|x| KafkaBrokerMetadataDto {
@@ -272,7 +292,7 @@ pub fn kafka_cluster_metadata_to_proto_response(
         })
         .collect();
 
-    let topics = metadata
+    let topics = model
         .topics
         .into_par_iter()
         .map(|x| KafkaTopicMetadataDto {
@@ -282,4 +302,21 @@ pub fn kafka_cluster_metadata_to_proto_response(
         .collect();
 
     GetClusterMetadataQueryResponse { brokers, topics }
+}
+
+pub fn topic_partition_offsets_to_proto_response(
+    model: GetTopicPartitionsWithOffsetsQueryResponseInternal,
+) -> GetTopicPartitionsWithOffsetsQueryResponse {
+    let partitions = model
+        .partitions
+        .into_par_iter()
+        .map(|x| PartitionDataWatermarksDto {
+            id: x.id,
+            min_offset: x.min_offset,
+            max_offset: x.max_offset,
+            messages_count: x.messages_count(),
+        })
+        .collect();
+
+    GetTopicPartitionsWithOffsetsQueryResponse { partitions }
 }

@@ -11,11 +11,13 @@ use crate::kafka_api::proto::produce_messages::{
 use crate::kafka_api::proto::{ReadMessagesQuery, ReadMessagesQueryResponse};
 use crate::kafka_api::{
     kafka_cluster_metadata_to_proto_response, proto, proto_get_cluster_metadata_to_internal,
-    proto_produce_messages_to_internal, proto_read_messages_to_internal,
+    proto_get_topic_partition_offsets_internal, proto_produce_messages_to_internal,
+    proto_read_messages_to_internal, topic_partition_offsets_to_proto_response,
 };
 use crate::util::StreamDataExtension;
 use kafka_reader::commands::produce_messages::produce_messages_to_topic;
 use kafka_reader::queries::get_cluster_metadata::get_cluster_metadata;
+use kafka_reader::queries::get_topic_partitions_with_offsets::get_topic_partition_offsets;
 use kafka_reader::queries::read_messages::run_read_messages_to_channel;
 use tokio::select;
 use tokio_stream::wrappers::ReceiverStream;
@@ -92,13 +94,13 @@ impl proto::KafkaService for KafkaService {
 
         let query = proto_get_cluster_metadata_to_internal(proto_request);
 
-        let result = get_cluster_metadata(query)
+        let response = get_cluster_metadata(query)
             .await
             .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
 
-        let response = kafka_cluster_metadata_to_proto_response(result);
+        let proto_response = kafka_cluster_metadata_to_proto_response(response);
 
-        Ok(Response::new(response))
+        Ok(Response::new(proto_response))
     }
 
     async fn get_topic_partitions_with_offsets(
@@ -106,6 +108,13 @@ impl proto::KafkaService for KafkaService {
         request: Request<GetTopicPartitionsWithOffsetsQuery>,
     ) -> Result<Response<GetTopicPartitionsWithOffsetsQueryResponse>, Status> {
         let proto_request = request.into_inner();
-        todo!()
+
+        let query = proto_get_topic_partition_offsets_internal(proto_request);
+        let response = get_topic_partition_offsets(query)
+            .await
+            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+
+        let proto_response = topic_partition_offsets_to_proto_response(response);
+        Ok(Response::new(proto_response))
     }
 }

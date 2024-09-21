@@ -1,7 +1,8 @@
-use crate::consumer::{AutoOffsetReset, BrokerError, ConsumerWrapper, KafkaMessage, MessagesCounters, PartitionOffset, ReadResult};
+use crate::consumer::{AutoOffsetReset, ConsumerWrapper, PartitionOffset};
 use crate::error::ConvertError;
 use crate::queries::read_messages::{
-    FilterCondition, FilterKind, Format, ProtobufDecodeWay, ReadLimit, ReadMessagesQueryInternal,
+    BrokerError, FilterCondition, FilterKind, Format, KafkaMessage, MessagesCounters,
+    ProtobufDecodeWay, ReadLimit, ReadMessagesQueryInternal, ReadMessagesQueryInternalResponse,
     StartFrom, ValueFilter,
 };
 use crate::utils::create_holder;
@@ -24,7 +25,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace};
 use uuid::Uuid;
 
-type ChannelItem = ReadResult;
+type ChannelItem = ReadMessagesQueryInternalResponse;
 
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesQueryInternal,
@@ -44,7 +45,7 @@ pub async fn run_read_messages_to_channel(
         offset_reset,
         request.security_protocol,
     )
-        .context("While creating consumer")?;
+    .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
 
     let request = Arc::new(request);
@@ -96,7 +97,7 @@ pub async fn run_read_messages_to_channel(
                     return;
                 }
             }
-                .await;
+            .await;
 
             tokio::task::spawn(handle_message_result(
                 converted_message,
@@ -204,7 +205,10 @@ async fn handle_message_result(
     }
 
     let partition_offset = message.partition_offset;
-    if let Err(e) = tx.send(ReadResult::KafkaMessage(message)).await {
+    if let Err(e) = tx
+        .send(ReadMessagesQueryInternalResponse::KafkaMessage(message))
+        .await
+    {
         error!(
             "Error while sending message to channel. Topic {}, metadata: {:?}. {}",
             topic, partition_offset, e
@@ -328,7 +332,7 @@ async fn bytes_to_string(
                     &single_proto_file.message_type_name,
                     preparer,
                 )
-                    .context("While converting proto bytes to json")?;
+                .context("While converting proto bytes to json")?;
                 Some(json)
             }
         },

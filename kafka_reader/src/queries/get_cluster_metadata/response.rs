@@ -1,5 +1,5 @@
 #[derive(Debug)]
-pub struct KafkaClusterMetadata {
+pub struct GetClusterMetadataQueryInternalResponse {
     pub brokers: Vec<BrokerMetadata>,
     pub topics: Vec<KafkaTopicMetadata>,
 }
