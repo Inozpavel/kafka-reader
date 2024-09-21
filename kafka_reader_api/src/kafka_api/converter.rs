@@ -1,5 +1,8 @@
 use crate::kafka_api::proto;
-use crate::kafka_api::proto::get_cluster_metadata::GetClusterMetadataQuery;
+use crate::kafka_api::proto::get_cluster_metadata::{
+    GetClusterMetadataQuery, GetClusterMetadataQueryResponse, KafkaBrokerMetadataDto,
+    KafkaTopicMetadataDto,
+};
 use crate::kafka_api::proto::message_format_dto::proto_format_dto;
 use crate::kafka_api::proto::produce_messages::{ProduceMessageDto, ProduceMessagesCommand};
 use crate::kafka_api::proto::read_limit_dto::NoLimitDto;
@@ -13,6 +16,8 @@ use crate::kafka_api::proto::{
 };
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
+
+use kafka_reader::consumer::metadata::KafkaClusterMetadata;
 use kafka_reader::consumer::{ReadResult, SecurityProtocol};
 use kafka_reader::requests::get_cluster_metadata::GetClusterMetadataQueryInternal;
 use kafka_reader::requests::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
@@ -20,6 +25,7 @@ use kafka_reader::requests::read_messages::{
     FilterCondition, FilterKind, Format, MessageTime, ProtobufDecodeWay, ReadLimit,
     ReadMessagesQueryInternal, SingleProtoFile, StartFrom, ValueFilter,
 };
+use rayon::prelude::*;
 use regex::Regex;
 use tonic::Status;
 
@@ -64,7 +70,7 @@ pub fn proto_produce_messages_to_internal(
     let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
     let messages = model
         .messages
-        .into_iter()
+        .into_par_iter()
         .map(proto_produce_message_to_internal)
         .collect();
     let result = ProduceMessagesCommandInternal {
@@ -254,6 +260,26 @@ pub fn read_result_to_proto_response(
     })
 }
 
-// pub fn kafka_cluster_metadata_to_proto_response(metadata: KafkaClusterMetadata) -> {
-//
-// }
+pub fn kafka_cluster_metadata_to_proto_response(
+    metadata: KafkaClusterMetadata,
+) -> GetClusterMetadataQueryResponse {
+    let brokers = metadata
+        .brokers
+        .into_par_iter()
+        .map(|x| KafkaBrokerMetadataDto {
+            port: x.port as u32,
+            host: x.host,
+        })
+        .collect();
+
+    let topics = metadata
+        .topics
+        .into_par_iter()
+        .map(|x| KafkaTopicMetadataDto {
+            topic_name: x.topic_name,
+            partitions_count: x.partitions_count as u32,
+        })
+        .collect();
+
+    GetClusterMetadataQueryResponse { brokers, topics }
+}

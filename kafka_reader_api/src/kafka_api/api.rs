@@ -10,8 +10,8 @@ use crate::kafka_api::proto::produce_messages::{
 };
 use crate::kafka_api::proto::{ReadMessagesQuery, ReadMessagesQueryResponse};
 use crate::kafka_api::{
-    proto, proto_get_cluster_metadata_to_internal, proto_produce_messages_to_internal,
-    proto_read_messages_to_internal,
+    kafka_cluster_metadata_to_proto_response, proto, proto_get_cluster_metadata_to_internal,
+    proto_produce_messages_to_internal, proto_read_messages_to_internal,
 };
 use crate::util::StreamDataExtension;
 use kafka_reader::requests::get_cluster_metadata::get_cluster_metadata;
@@ -38,15 +38,14 @@ impl proto::KafkaService for KafkaService {
         let proto_read_request = request.into_inner();
         debug!("New request: {:?}", proto_read_request);
 
-        let internal_request = proto_read_messages_to_internal(proto_read_request)
+        let query = proto_read_messages_to_internal(proto_read_request)
             .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
-        debug!("Mapped request: {:?}", internal_request);
+        debug!("Mapped request: {:?}", query);
 
         let cancellation_token = CancellationToken::new();
         let guard = cancellation_token.clone().drop_guard();
 
-        let create_consumer_result =
-            run_read_messages_to_channel(internal_request, cancellation_token).await;
+        let create_consumer_result = run_read_messages_to_channel(query, cancellation_token).await;
 
         match create_consumer_result {
             Ok(rx) => {
@@ -64,15 +63,15 @@ impl proto::KafkaService for KafkaService {
         debug!("New request: {:?}", request);
         let proto_produce_request = request.into_inner();
 
-        let internal_request = proto_produce_messages_to_internal(proto_produce_request)
+        let command = proto_produce_messages_to_internal(proto_produce_request)
             .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
 
-        debug!("Mapped request: {:?}", internal_request);
+        debug!("Mapped request: {:?}", command);
         let cancellation_token = CancellationToken::new();
         let _drop_guard = cancellation_token.clone().drop_guard();
 
         select! {
-            result = produce_messages_to_topic(internal_request, cancellation_token.clone()) =>{
+            result = produce_messages_to_topic(command, cancellation_token.clone()) =>{
                 result.map_err(|e| Status::invalid_argument(format!("{:?}", e)))?
             }
             _ = cancellation_token.cancelled() =>{
@@ -91,19 +90,22 @@ impl proto::KafkaService for KafkaService {
     ) -> Result<Response<GetClusterMetadataQueryResponse>, Status> {
         let proto_request = request.into_inner();
 
-        let internal_request = proto_get_cluster_metadata_to_internal(proto_request);
+        let query = proto_get_cluster_metadata_to_internal(proto_request);
 
-        let response = get_cluster_metadata(internal_request)
+        let result = get_cluster_metadata(query)
             .await
             .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
 
-        todo!()
+        let response = kafka_cluster_metadata_to_proto_response(result);
+
+        Ok(Response::new(response))
     }
 
     async fn get_topic_partitions_with_offsets(
         &self,
         request: Request<GetTopicPartitionsWithOffsetsQuery>,
     ) -> Result<Response<GetTopicPartitionsWithOffsetsQueryResponse>, Status> {
+        let proto_request = request.into_inner();
         todo!()
     }
 }
