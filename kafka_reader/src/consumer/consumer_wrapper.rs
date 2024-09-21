@@ -26,6 +26,8 @@ impl ConsumerWrapper {
             .set("auto.commit.interval.ms", "4000")
             .set("message.max.bytes", "1000000000")
             .set("receive.message.max.bytes", "2147483647")
+            // .set("debug", "all")
+            .set("heartbeat.interval.ms", "1000")
             .create()?;
 
         Ok(Self { consumer })

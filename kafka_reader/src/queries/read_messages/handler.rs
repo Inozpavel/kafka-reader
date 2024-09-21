@@ -20,7 +20,7 @@ use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
-use tokio::time::sleep;
+use tokio::time::{sleep, Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace};
 use uuid::Uuid;
@@ -69,6 +69,8 @@ pub async fn run_read_messages_to_channel(
         loop {
             let cancellation_token = cancellation_token.clone();
             let holder = holder.clone();
+
+            let start = Instant::now();
             let message_result = select! {
                 msg = consumer_wrapper.recv() => {
                     msg
@@ -78,6 +80,11 @@ pub async fn run_read_messages_to_channel(
                     break
                 }
             };
+
+            let elapsed = start.elapsed();
+
+            trace!("Consume duration: {:?}", elapsed);
+
             if message_result.is_ok() {
                 read_messages_counter.fetch_add(1, Ordering::Relaxed);
             };

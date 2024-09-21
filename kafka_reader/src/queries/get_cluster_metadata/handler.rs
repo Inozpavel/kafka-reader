@@ -11,10 +11,11 @@ use std::time::Duration;
 pub async fn get_cluster_metadata(
     request: GetClusterMetadataQueryInternal,
 ) -> Result<GetClusterMetadataQueryInternalResponse, anyhow::Error> {
-    let client =
-        ConsumerWrapper::create_for_non_consuming(&request.brokers, request.security_protocol)
-            .context("While creating admin client")?;
     let handle = tokio::task::spawn_blocking(move || {
+        let client =
+            ConsumerWrapper::create_for_non_consuming(&request.brokers, request.security_protocol)
+                .context("While creating admin client")?;
+
         let metadata = client
             .fetch_metadata(None, Timeout::After(Duration::from_secs(5)))
             .context("While fetching metadata")?;
