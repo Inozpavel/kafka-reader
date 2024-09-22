@@ -37,6 +37,8 @@ use kafka_reader::queries::read_messages::{
 use rayon::prelude::*;
 use regex::Regex;
 use tonic::Status;
+use kafka_reader::queries::get_topic_lags::GetTopicLagsQueryInternal;
+use crate::kafka_api::proto::get_topic_lags::GetTopicLagsQuery;
 
 pub fn proto_read_messages_to_internal(
     model: ReadMessagesQuery,
@@ -66,6 +68,21 @@ pub fn proto_read_messages_to_internal(
     };
 
     Ok(result)
+}
+
+pub fn proto_get_lags_to_internal(
+    model: GetTopicLagsQuery,
+) -> GetTopicLagsQueryInternal {
+    let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
+
+    let result = GetTopicLagsQueryInternal {
+        topic: model.topic,
+        brokers: model.brokers,
+        security_protocol,
+        group_search: model.group_search,
+    };
+
+    result
 }
 
 pub fn proto_produce_messages_to_internal(
@@ -312,9 +329,9 @@ pub fn topic_partition_offsets_to_proto_response(
         .into_par_iter()
         .map(|x| PartitionDataWatermarksDto {
             id: x.id,
-            min_offset: x.min_offset,
-            max_offset: x.max_offset,
-            messages_count: x.messages_count(),
+            min_offset: x.offsets.min_offset,
+            max_offset: x.offsets.max_offset,
+            messages_count: x.offsets.messages_count(),
         })
         .collect();
 

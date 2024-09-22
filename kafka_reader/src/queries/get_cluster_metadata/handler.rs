@@ -13,7 +13,7 @@ pub async fn get_cluster_metadata(
 ) -> Result<GetClusterMetadataQueryInternalResponse, anyhow::Error> {
     let handle = tokio::task::spawn_blocking(move || {
         let client =
-            ConsumerWrapper::create_for_non_consuming(&request.brokers, request.security_protocol)
+            ConsumerWrapper::create_for_non_consuming(&request.brokers, request.security_protocol, None)
                 .context("While creating admin client")?;
 
         let metadata = client

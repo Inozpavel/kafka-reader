@@ -11,14 +11,13 @@ pub struct ConsumerWrapper {
 impl ConsumerWrapper {
     pub fn create_for_consuming(
         brokers: &[String],
+        security_protocol: SecurityProtocol,
         group: &str,
         auto_offset_reset: AutoOffsetReset,
-        security_protocol: SecurityProtocol,
     ) -> Result<Self, KafkaError> {
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
-        let consumer: StreamConsumer = Self::create_common_config(brokers, security_protocol)
+        let consumer: StreamConsumer = Self::create_common_config(brokers, security_protocol, Some(group))
             .set("auto.offset.reset", auto_offset_reset.to_string())
-            .set("group.id", group)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "10000")
             .set("enable.auto.commit", "true")
@@ -36,9 +35,10 @@ impl ConsumerWrapper {
     pub fn create_for_non_consuming(
         brokers: &[String],
         security_protocol: SecurityProtocol,
+        group: Option<&str>,
     ) -> Result<Self, KafkaError> {
         let consumer: StreamConsumer =
-            Self::create_common_config(brokers, security_protocol).create()?;
+            Self::create_common_config(brokers, security_protocol, group).create()?;
 
         Ok(Self { consumer })
     }
@@ -46,14 +46,19 @@ impl ConsumerWrapper {
     fn create_common_config(
         brokers: &[String],
         security_protocol: SecurityProtocol,
+        group: Option<&str>,
     ) -> ClientConfig {
         let mut config = ClientConfig::new();
 
         let brokers_string = brokers.join(",");
         config
             .set("bootstrap.servers", brokers_string)
-            // .set("debug", "")
+            // .set("debug", "all")
             .set("security.protocol", security_protocol.to_string());
+
+        if let Some(group) = group {
+            config.set("group.id", group);
+        }
 
         config
     }

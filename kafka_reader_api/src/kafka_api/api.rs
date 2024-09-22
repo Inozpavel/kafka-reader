@@ -9,11 +9,7 @@ use crate::kafka_api::proto::produce_messages::{
     ProduceMessagesCommand, ProduceMessagesCommandResponse,
 };
 use crate::kafka_api::proto::{ReadMessagesQuery, ReadMessagesQueryResponse};
-use crate::kafka_api::{
-    kafka_cluster_metadata_to_proto_response, proto, proto_get_cluster_metadata_to_internal,
-    proto_get_topic_partition_offsets_internal, proto_produce_messages_to_internal,
-    proto_read_messages_to_internal, topic_partition_offsets_to_proto_response,
-};
+use crate::kafka_api::{kafka_cluster_metadata_to_proto_response, proto, proto_get_cluster_metadata_to_internal, proto_get_lags_to_internal, proto_get_topic_partition_offsets_internal, proto_produce_messages_to_internal, proto_read_messages_to_internal, topic_partition_offsets_to_proto_response};
 use crate::util::StreamDataExtension;
 use kafka_reader::commands::produce_messages::produce_messages_to_topic;
 use kafka_reader::queries::get_cluster_metadata::get_cluster_metadata;
@@ -25,6 +21,8 @@ use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
+use kafka_reader::queries::get_topic_lags::{get_topic_lags, GetTopicLagsQueryInternal};
+use crate::kafka_api::proto::get_topic_lags::{GetTopicLagsQuery, GetTopicLagsQueryResponse};
 
 #[derive(Debug)]
 pub struct KafkaService;
@@ -32,7 +30,7 @@ pub struct KafkaService;
 #[tonic::async_trait]
 impl proto::KafkaService for KafkaService {
     type ReadMessagesStream =
-        Box<dyn Stream<Item = Result<ReadMessagesQueryResponse, Status>> + Send + Unpin>;
+    Box<dyn Stream<Item=Result<ReadMessagesQueryResponse, Status>> + Send + Unpin>;
 
     #[tracing::instrument(skip_all)]
     async fn read_messages(
@@ -121,5 +119,19 @@ impl proto::KafkaService for KafkaService {
 
         let proto_response = topic_partition_offsets_to_proto_response(response);
         Ok(Response::new(proto_response))
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn get_topic_lags(&self, request: Request<GetTopicLagsQuery>) -> Result<Response<GetTopicLagsQueryResponse>, Status> {
+        let proto_request = request.into_inner();
+        let query = proto_get_lags_to_internal(proto_request);
+
+        get_topic_lags(query).await
+            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+
+        let r = GetTopicLagsQueryResponse {
+            lags: vec![]
+        };
+        Ok(Response::new(r))
     }
 }

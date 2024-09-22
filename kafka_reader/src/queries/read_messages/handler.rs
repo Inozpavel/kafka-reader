@@ -41,11 +41,11 @@ pub async fn run_read_messages_to_channel(
     let group = format!("kafka-reader-{}", Uuid::now_v7());
     let consumer_wrapper = ConsumerWrapper::create_for_consuming(
         &request.brokers,
+        request.security_protocol,
         &group,
         offset_reset,
-        request.security_protocol,
     )
-    .context("While creating consumer")?;
+        .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
 
     let request = Arc::new(request);
@@ -105,7 +105,7 @@ pub async fn run_read_messages_to_channel(
                     return;
                 }
             }
-            .await;
+                .await;
 
             tokio::task::spawn(handle_message_result(
                 converted_message,
@@ -348,7 +348,7 @@ async fn bytes_to_string(
                     &single_proto_file.message_type_name,
                     preparer,
                 )
-                .context("While converting proto bytes to json")?;
+                    .context("While converting proto bytes to json")?;
                 Some(json)
             }
         },

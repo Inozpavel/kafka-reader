@@ -13,6 +13,7 @@ service KafkaService {
   rpc ProduceMessages(ProduceMessages.ProduceMessagesCommand) returns (ProduceMessages.ProduceMessagesCommandResponse);
   rpc GetClusterMetadata(GetClusterMetadata.GetClusterMetadataQuery) returns (GetClusterMetadata.GetClusterMetadataQueryResponse);
   rpc GetTopicPartitionsWithOffsets(GetTopicPartitionsWithOffsets.GetTopicPartitionsWithOffsetsQuery) returns (GetTopicPartitionsWithOffsets.GetTopicPartitionsWithOffsetsQueryResponse);
+  rpc GetTopicLags(GetTopicLags.GetTopicLagsQuery) returns (GetTopicLags.GetTopicLagsQueryResponse);
 }
 
 message ReadMessages {
@@ -195,5 +196,22 @@ message GetTopicPartitionsWithOffsets {
     int64 min_offset = 2;
     int64 max_offset = 3;
     int64 messages_count = 5;
+  }
+}
+
+message GetTopicLags {
+  message GetTopicLagsQuery {
+    repeated string brokers = 1;
+    SecurityProtocolDto security_protocol = 2;
+    string topic = 3;
+    google.protobuf.StringValue group_search = 4;
+  }
+
+  message GetTopicLagsQueryResponse {
+    repeated GroupLagDto lags = 1;
+  }
+  message GroupLagDto {
+    string group_id = 1;
+    int64 lag = 2;
   }
 }
