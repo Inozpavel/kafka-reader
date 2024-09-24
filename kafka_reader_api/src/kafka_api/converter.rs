@@ -11,12 +11,17 @@ use crate::kafka_api::proto::start_from_dto::FromBeginningDto;
 use crate::kafka_api::proto::value_filter_dto::condition;
 use crate::kafka_api::proto::{
     filter_kind_dto, message_format_dto, read_limit_dto, read_messages_query_response,
-    security_protocol_dto, start_from_dto, MessageFormatDto, ReadLimitDto, ReadMessagesQuery,
-    ReadMessagesQueryResponse, SecurityProtocolDto, StartFromDto, ValueFilterDto,
+    security_protocol_dto, start_from_dto, ErrorDto, MessageFormatDto, ReadLimitDto,
+    ReadMessagesQuery, ReadMessagesQueryResponse, SecurityProtocolDto, StartFromDto,
+    ValueFilterDto,
 };
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, Context};
 
+use crate::kafka_api::proto::get_topic_lags::{
+    get_topic_lags_query_response, GetTopicLagsQuery, GetTopicLagsQueryResponse, GroupLagsDto,
+    GroupTopicLagDto, GroupTopicPartitionLagDto,
+};
 use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
     GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
     PartitionDataWatermarksDto,
@@ -25,6 +30,9 @@ use kafka_reader::commands::produce_messages::{ProduceMessage, ProduceMessagesCo
 use kafka_reader::consumer::SecurityProtocol;
 use kafka_reader::queries::get_cluster_metadata::{
     GetClusterMetadataQueryInternal, GetClusterMetadataQueryInternalResponse,
+};
+use kafka_reader::queries::get_topic_lags::{
+    GetTopicLagsQueryInternal, GroupTopicLags, ReadLagsResult,
 };
 use kafka_reader::queries::get_topic_partitions_with_offsets::{
     GetTopicPartitionsWithOffsetsQueryInternal, GetTopicPartitionsWithOffsetsQueryResponseInternal,
@@ -66,6 +74,17 @@ pub fn proto_read_messages_to_internal(
     };
 
     Ok(result)
+}
+
+pub fn proto_get_lags_to_internal(model: GetTopicLagsQuery) -> GetTopicLagsQueryInternal {
+    let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
+
+    GetTopicLagsQueryInternal {
+        topic: model.topic,
+        brokers: model.brokers,
+        security_protocol,
+        group_search: model.group_search,
+    }
 }
 
 pub fn proto_produce_messages_to_internal(
@@ -270,7 +289,7 @@ pub fn read_result_to_proto_response(
             })
         }
         ReadMessagesQueryInternalResponse::BrokerError(broker_error) => {
-            read_messages_query_response::Response::BrokerError(proto::BrokerErrorDto {
+            read_messages_query_response::Response::BrokerError(proto::ErrorDto {
                 message: format!("{:?}", broker_error.message),
             })
         }
@@ -280,6 +299,45 @@ pub fn read_result_to_proto_response(
     })
 }
 
+pub fn topic_lag_result_to_proto_response(
+    model: ReadLagsResult,
+) -> Result<GetTopicLagsQueryResponse, Status> {
+    let variant = match model {
+        ReadLagsResult::GroupTopicLag(lags) => {
+            let response = to_response(lags);
+            get_topic_lags_query_response::Response::Lags(response)
+        }
+        ReadLagsResult::BrokerError(e) => {
+            get_topic_lags_query_response::Response::Error(ErrorDto {
+                message: format!("{:?}", e),
+            })
+        }
+    };
+    Ok(GetTopicLagsQueryResponse {
+        response: Some(variant),
+    })
+}
+
+fn to_response(model: GroupTopicLags) -> GroupLagsDto {
+    let partition_lag_dto = model
+        .lags
+        .into_iter()
+        .map(|x| GroupTopicPartitionLagDto {
+            lag: x.lag,
+            partition: x.partition,
+        })
+        .collect();
+
+    let dto = GroupTopicLagDto {
+        group_id: model.group_info.id,
+        group_state: model.group_info.state,
+        topic: model.topic.to_string(),
+        partition_lag_dto,
+    };
+    GroupLagsDto {
+        group_topic_lags: vec![dto],
+    }
+}
 pub fn kafka_cluster_metadata_to_proto_response(
     model: GetClusterMetadataQueryInternalResponse,
 ) -> GetClusterMetadataQueryResponse {
@@ -312,9 +370,9 @@ pub fn topic_partition_offsets_to_proto_response(
         .into_par_iter()
         .map(|x| PartitionDataWatermarksDto {
             id: x.id,
-            min_offset: x.min_offset,
-            max_offset: x.max_offset,
-            messages_count: x.messages_count(),
+            min_offset: x.offsets.min_offset,
+            max_offset: x.offsets.max_offset,
+            messages_count: x.offsets.messages_count(),
         })
         .collect();
 

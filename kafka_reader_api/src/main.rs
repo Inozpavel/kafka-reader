@@ -2,6 +2,7 @@
 #![deny(clippy::clone_on_copy)]
 #![deny(forgetting_copy_types)]
 #![deny(clippy::style)]
+#![allow(clippy::too_many_arguments)]
 
 use anyhow::Context;
 use kafka_reader_api::app_config::AppConfig;

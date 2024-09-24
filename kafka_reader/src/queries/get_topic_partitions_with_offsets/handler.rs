@@ -2,7 +2,9 @@ use crate::consumer::ConsumerWrapper;
 use crate::queries::get_topic_partitions_with_offsets::response::{
     GetTopicPartitionsWithOffsetsQueryResponseInternal, TopicPartitionWithOffsetsInternal,
 };
-use crate::queries::get_topic_partitions_with_offsets::GetTopicPartitionsWithOffsetsQueryInternal;
+use crate::queries::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQueryInternal, MinMaxOffset,
+};
 use anyhow::{bail, Context};
 use rayon::prelude::*;
 use rdkafka::consumer::Consumer;
@@ -22,7 +24,7 @@ fn build_response(
     query: GetTopicPartitionsWithOffsetsQueryInternal,
 ) -> Result<GetTopicPartitionsWithOffsetsQueryResponseInternal, anyhow::Error> {
     let consumer =
-        ConsumerWrapper::create_for_non_consuming(&query.brokers, query.security_protocol)
+        ConsumerWrapper::create_for_non_consuming(&query.brokers, query.security_protocol, None)
             .context("While creating consumer")?;
 
     let metadata = consumer
@@ -80,7 +82,9 @@ fn fetch_topic_partition_offset(
 
     Ok(TopicPartitionWithOffsetsInternal {
         id: partition,
-        min_offset: low,
-        max_offset: high,
+        offsets: MinMaxOffset {
+            min_offset: low,
+            max_offset: high,
+        },
     })
 }

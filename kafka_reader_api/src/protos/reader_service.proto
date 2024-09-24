@@ -13,6 +13,7 @@ service KafkaService {
   rpc ProduceMessages(ProduceMessages.ProduceMessagesCommand) returns (ProduceMessages.ProduceMessagesCommandResponse);
   rpc GetClusterMetadata(GetClusterMetadata.GetClusterMetadataQuery) returns (GetClusterMetadata.GetClusterMetadataQueryResponse);
   rpc GetTopicPartitionsWithOffsets(GetTopicPartitionsWithOffsets.GetTopicPartitionsWithOffsetsQuery) returns (GetTopicPartitionsWithOffsets.GetTopicPartitionsWithOffsetsQueryResponse);
+  rpc GetTopicLags(GetTopicLags.GetTopicLagsQuery) returns (stream GetTopicLags.GetTopicLagsQueryResponse);
 }
 
 message ReadMessages {
@@ -84,7 +85,7 @@ message ReadMessages {
     oneof response {
       KafkaMessageDto kafka_message = 1;
       MessagesCountersDto counters = 2;
-      BrokerErrorDto broker_error = 3;
+      ErrorDto broker_error = 3;
     }
   }
   message KafkaMessageDto {
@@ -99,9 +100,7 @@ message ReadMessages {
     uint64 read_count = 1;
     uint64 returned_count = 2;
   }
-  message BrokerErrorDto {
-    string message = 1;
-  }
+
 }
 
 message ProduceMessages {
@@ -196,4 +195,37 @@ message GetTopicPartitionsWithOffsets {
     int64 max_offset = 3;
     int64 messages_count = 5;
   }
+}
+
+message GetTopicLags {
+  message GetTopicLagsQuery {
+    repeated string brokers = 1;
+    SecurityProtocolDto security_protocol = 2;
+    string topic = 3;
+    google.protobuf.StringValue group_search = 4;
+  }
+
+  message GetTopicLagsQueryResponse {
+    oneof response {
+      GroupLagsDto lags = 1;
+      ErrorDto error = 2;
+    }
+  }
+  message GroupLagsDto {
+    repeated GroupTopicLagDto group_topic_lags = 1;
+  }
+  message GroupTopicLagDto {
+    string group_id = 1;
+    string group_state = 2;
+    string topic = 3;
+    repeated GroupTopicPartitionLagDto PartitionLagDto = 4;
+  }
+  message GroupTopicPartitionLagDto {
+    int32 partition = 2;
+    int64 lag = 3;
+  }
+}
+
+message ErrorDto {
+  string message = 1;
 }

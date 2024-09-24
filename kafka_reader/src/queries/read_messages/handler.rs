@@ -6,7 +6,7 @@ use crate::queries::read_messages::{
     StartFrom, ValueFilter,
 };
 use crate::utils::create_holder;
-use anyhow::{anyhow, bail, Context};
+use anyhow::{anyhow, Context};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::BytesMut;
@@ -22,18 +22,16 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Instant};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, trace};
+use tracing::{error, info, info_span, trace, Instrument};
 use uuid::Uuid;
 
 type ChannelItem = ReadMessagesQueryInternalResponse;
 
+#[tracing::instrument(skip_all)]
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesQueryInternal,
     cancellation_token: CancellationToken,
 ) -> Result<Receiver<ChannelItem>, anyhow::Error> {
-    if request.brokers.is_empty() {
-        bail!("No brokers specified")
-    }
     let offset_reset = match request.start_from {
         StartFrom::Beginning | StartFrom::Time(_) => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,
@@ -41,9 +39,9 @@ pub async fn run_read_messages_to_channel(
     let group = format!("kafka-reader-{}", Uuid::now_v7());
     let consumer_wrapper = ConsumerWrapper::create_for_consuming(
         &request.brokers,
+        request.security_protocol,
         &group,
         offset_reset,
-        request.security_protocol,
     )
     .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
@@ -65,7 +63,8 @@ pub async fn run_read_messages_to_channel(
     let read_messages_counter_copy = read_messages_counter.clone();
     let returned_messages_counter_copy = returned_messages_counter.clone();
     let tx_copy = tx.clone();
-    tokio::task::spawn(async move {
+
+    let messages_future = async move {
         loop {
             let cancellation_token = cancellation_token.clone();
             let holder = holder.clone();
@@ -118,7 +117,10 @@ pub async fn run_read_messages_to_channel(
                 cancellation_token,
             ));
         }
-    });
+    }
+    .instrument(info_span!("Reading messages to channel").or_current());
+
+    tokio::task::spawn(messages_future);
 
     tokio::task::spawn(async move {
         let mut last_counter = MessagesCounters {
@@ -143,7 +145,8 @@ pub async fn run_read_messages_to_channel(
                 }
             }
         }
-    });
+    }.instrument(info_span!("Updating counters").or_current()));
+
     Ok(rx)
 }
 

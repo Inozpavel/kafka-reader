@@ -1,8 +1,11 @@
 use crate::app_config::AppConfig;
 use crate::kafka_api::{proto, KafkaService};
 use anyhow::Context;
+use tonic::body::BoxBody;
 use tonic::transport::Server;
-use tracing::info;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+use tower_http::trace::TraceLayer;
+use tracing::{debug_span, info};
 
 pub async fn run_until_stopped(config: AppConfig) -> Result<(), anyhow::Error> {
     let address = format!("{}:{}", config.host, config.port)
@@ -14,9 +17,20 @@ pub async fn run_until_stopped(config: AppConfig) -> Result<(), anyhow::Error> {
         .build_v1alpha()
         .context("While building reflection service")?;
 
-    info!("Listening {address}");
+    info!("Starting on {address}");
 
     Server::builder()
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+        .layer(PropagateRequestIdLayer::x_request_id())
+        .layer(
+            TraceLayer::new_for_grpc().make_span_with(|r: &http::Request<BoxBody>| {
+                let request_id = r
+                    .headers()
+                    .get("x-request-id")
+                    .map_or("None", |x| x.to_str().unwrap_or("None"));
+                debug_span!("grpc-request", request_id)
+            }),
+        )
         .add_service(service)
         .add_service(proto::KafkaServiceServer::new(KafkaService))
         .serve(address)
