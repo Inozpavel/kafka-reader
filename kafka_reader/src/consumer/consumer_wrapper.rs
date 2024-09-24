@@ -16,18 +16,19 @@ impl ConsumerWrapper {
         auto_offset_reset: AutoOffsetReset,
     ) -> Result<Self, KafkaError> {
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
-        let consumer: StreamConsumer = Self::create_common_config(brokers, security_protocol, Some(group))
-            .set("auto.offset.reset", auto_offset_reset.to_string())
-            .set("enable.partition.eof", "false")
-            .set("session.timeout.ms", "10000")
-            .set("enable.auto.commit", "true")
-            .set("enable.auto.offset.store", "false")
-            .set("auto.commit.interval.ms", "4000")
-            .set("message.max.bytes", "1000000000")
-            .set("receive.message.max.bytes", "2147483647")
-            // .set("debug", "all")
-            .set("heartbeat.interval.ms", "1000")
-            .create()?;
+        let consumer: StreamConsumer =
+            Self::create_common_config(brokers, security_protocol, Some(group))
+                .set("auto.offset.reset", auto_offset_reset.to_string())
+                .set("enable.partition.eof", "false")
+                .set("session.timeout.ms", "10000")
+                .set("enable.auto.commit", "true")
+                .set("enable.auto.offset.store", "false")
+                .set("auto.commit.interval.ms", "4000")
+                .set("message.max.bytes", "1000000000")
+                .set("receive.message.max.bytes", "2147483647")
+                // .set("debug", "all")
+                .set("heartbeat.interval.ms", "1000")
+                .create()?;
 
         Ok(Self { consumer })
     }

@@ -2,7 +2,9 @@ use crate::consumer::ConsumerWrapper;
 use crate::queries::get_topic_partitions_with_offsets::response::{
     GetTopicPartitionsWithOffsetsQueryResponseInternal, TopicPartitionWithOffsetsInternal,
 };
-use crate::queries::get_topic_partitions_with_offsets::{GetTopicPartitionsWithOffsetsQueryInternal, MinMaxOffset};
+use crate::queries::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQueryInternal, MinMaxOffset,
+};
 use anyhow::{bail, Context};
 use rayon::prelude::*;
 use rdkafka::consumer::Consumer;

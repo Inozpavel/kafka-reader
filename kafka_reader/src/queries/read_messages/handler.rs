@@ -45,7 +45,7 @@ pub async fn run_read_messages_to_channel(
         &group,
         offset_reset,
     )
-        .context("While creating consumer")?;
+    .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
 
     let request = Arc::new(request);
@@ -105,7 +105,7 @@ pub async fn run_read_messages_to_channel(
                     return;
                 }
             }
-                .await;
+            .await;
 
             tokio::task::spawn(handle_message_result(
                 converted_message,
@@ -348,7 +348,7 @@ async fn bytes_to_string(
                     &single_proto_file.message_type_name,
                     preparer,
                 )
-                    .context("While converting proto bytes to json")?;
+                .context("While converting proto bytes to json")?;
                 Some(json)
             }
         },

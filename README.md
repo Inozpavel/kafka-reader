@@ -74,7 +74,7 @@ cd vcpkg
 
 vcpkg install librdkafka
 vcpkg install zlib
-vcpkg --triplet=x64-windows-static openssl
+vcpkg install --triplet=x64-windows-static openssl
 
 vcpkg integrate install
 
