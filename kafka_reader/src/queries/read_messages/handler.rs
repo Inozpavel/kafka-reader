@@ -22,11 +22,12 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Instant};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, trace};
+use tracing::{error, info, info_span, trace, Instrument};
 use uuid::Uuid;
 
 type ChannelItem = ReadMessagesQueryInternalResponse;
 
+#[tracing::instrument(skip_all)]
 pub async fn run_read_messages_to_channel(
     request: ReadMessagesQueryInternal,
     cancellation_token: CancellationToken,
@@ -62,7 +63,8 @@ pub async fn run_read_messages_to_channel(
     let read_messages_counter_copy = read_messages_counter.clone();
     let returned_messages_counter_copy = returned_messages_counter.clone();
     let tx_copy = tx.clone();
-    tokio::task::spawn(async move {
+
+    let messages_future = async move {
         loop {
             let cancellation_token = cancellation_token.clone();
             let holder = holder.clone();
@@ -115,7 +117,10 @@ pub async fn run_read_messages_to_channel(
                 cancellation_token,
             ));
         }
-    });
+    }
+    .instrument(info_span!("Reading messages to channel").or_current());
+
+    tokio::task::spawn(messages_future);
 
     tokio::task::spawn(async move {
         let mut last_counter = MessagesCounters {
@@ -140,7 +145,8 @@ pub async fn run_read_messages_to_channel(
                 }
             }
         }
-    });
+    }.instrument(info_span!("Updating counters").or_current()));
+
     Ok(rx)
 }
 

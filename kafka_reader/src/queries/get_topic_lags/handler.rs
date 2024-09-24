@@ -14,7 +14,7 @@ use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, info_span, Instrument};
 
 pub async fn get_topic_lags(
     query: GetTopicLagsQueryInternal,
@@ -22,11 +22,14 @@ pub async fn get_topic_lags(
 ) -> Result<Receiver<ReadLagsResult>, anyhow::Error> {
     let (tx, rx) = tokio::sync::mpsc::channel(128);
 
-    tokio::task::spawn(async move {
-        if let Err(e) = write_lags_to_channel(query, tx.clone(), cancellation_token).await {
-            let _ = tx.send(ReadLagsResult::BrokerError(e)).await;
+    tokio::task::spawn(
+        async move {
+            if let Err(e) = write_lags_to_channel(query, tx.clone(), cancellation_token).await {
+                let _ = tx.send(ReadLagsResult::BrokerError(e)).await;
+            }
         }
-    });
+        .instrument(info_span!("Writing lags to channel").or_current()),
+    );
 
     Ok(rx)
 }
