@@ -6,7 +6,7 @@ use crate::queries::read_messages::{
     StartFrom, ValueFilter,
 };
 use crate::utils::create_holder;
-use anyhow::{anyhow, bail, Context};
+use anyhow::{anyhow, Context};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::BytesMut;
@@ -31,9 +31,6 @@ pub async fn run_read_messages_to_channel(
     request: ReadMessagesQueryInternal,
     cancellation_token: CancellationToken,
 ) -> Result<Receiver<ChannelItem>, anyhow::Error> {
-    if request.brokers.is_empty() {
-        bail!("No brokers specified")
-    }
     let offset_reset = match request.start_from {
         StartFrom::Beginning | StartFrom::Time(_) => AutoOffsetReset::Earliest,
         StartFrom::Latest => AutoOffsetReset::Latest,

@@ -1,6 +1,6 @@
 use crate::consumer::{AutoOffsetReset, SecurityProtocol};
+use anyhow::{bail, Context};
 use rdkafka::consumer::StreamConsumer;
-use rdkafka::error::KafkaError;
 use rdkafka::ClientConfig;
 use std::ops::{Deref, DerefMut};
 
@@ -14,10 +14,11 @@ impl ConsumerWrapper {
         security_protocol: SecurityProtocol,
         group: &str,
         auto_offset_reset: AutoOffsetReset,
-    ) -> Result<Self, KafkaError> {
+    ) -> Result<Self, anyhow::Error> {
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
         let consumer: StreamConsumer =
             Self::create_common_config(brokers, security_protocol, Some(group))
+                .context("While creating common config")?
                 .set("auto.offset.reset", auto_offset_reset.to_string())
                 .set("enable.partition.eof", "false")
                 .set("session.timeout.ms", "10000")
@@ -26,7 +27,6 @@ impl ConsumerWrapper {
                 .set("auto.commit.interval.ms", "4000")
                 .set("message.max.bytes", "1000000000")
                 .set("receive.message.max.bytes", "2147483647")
-                // .set("debug", "all")
                 .set("heartbeat.interval.ms", "1000")
                 .create()?;
 
@@ -37,9 +37,11 @@ impl ConsumerWrapper {
         brokers: &[String],
         security_protocol: SecurityProtocol,
         group: Option<&str>,
-    ) -> Result<Self, KafkaError> {
+    ) -> Result<Self, anyhow::Error> {
         let consumer: StreamConsumer =
-            Self::create_common_config(brokers, security_protocol, group).create()?;
+            Self::create_common_config(brokers, security_protocol, group)
+                .context("While creating common config")?
+                .create()?;
 
         Ok(Self { consumer })
     }
@@ -48,7 +50,10 @@ impl ConsumerWrapper {
         brokers: &[String],
         security_protocol: SecurityProtocol,
         group: Option<&str>,
-    ) -> ClientConfig {
+    ) -> Result<ClientConfig, anyhow::Error> {
+        if brokers.is_empty() {
+            bail!("No brokers specified")
+        }
         let mut config = ClientConfig::new();
 
         let brokers_string = brokers.join(",");
@@ -61,7 +66,7 @@ impl ConsumerWrapper {
             config.set("group.id", group);
         }
 
-        config
+        Ok(config)
     }
 }
 
