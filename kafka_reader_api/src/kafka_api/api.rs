@@ -1,3 +1,4 @@
+use crate::error::ApplicationError;
 use crate::kafka_api::converter::read_result_to_proto_response;
 use crate::kafka_api::proto::get_cluster_metadata::{
     GetClusterMetadataQuery, GetClusterMetadataQueryResponse,
@@ -46,21 +47,19 @@ impl proto::KafkaService for KafkaService {
         debug!("New request: {:?}", proto_read_request);
 
         let query = proto_read_messages_to_internal(proto_read_request)
-            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+            .map_err(ApplicationError::InvalidArgument)?;
+
         debug!("Mapped request: {:?}", query);
 
         let cancellation_token = CancellationToken::new();
         let guard = cancellation_token.clone().drop_guard();
 
-        let create_consumer_result = run_read_messages_to_channel(query, cancellation_token).await;
+        let rx = run_read_messages_to_channel(query, cancellation_token)
+            .await
+            .map_err(ApplicationError::InvalidArgument)?;
 
-        match create_consumer_result {
-            Ok(rx) => {
-                let map = ReceiverStream::new(rx).map(read_result_to_proto_response);
-                Ok(Response::new(Box::new(map.with_data(guard))))
-            }
-            Err(e) => Err(Status::invalid_argument(format!("{:?}", e))),
-        }
+        let stream = ReceiverStream::new(rx).map(read_result_to_proto_response);
+        Ok(Response::new(Box::new(stream.with_data(guard))))
     }
 
     #[tracing::instrument(skip_all)]
@@ -72,7 +71,7 @@ impl proto::KafkaService for KafkaService {
         let proto_produce_request = request.into_inner();
 
         let command = proto_produce_messages_to_internal(proto_produce_request)
-            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+            .map_err(ApplicationError::InvalidArgument)?;
 
         debug!("Mapped request: {:?}", command);
         let cancellation_token = CancellationToken::new();
@@ -80,7 +79,7 @@ impl proto::KafkaService for KafkaService {
 
         select! {
             result = produce_messages_to_topic(command, cancellation_token.clone()) =>{
-                result.map_err(|e| Status::invalid_argument(format!("{:?}", e)))?
+                result.map_err(ApplicationError::InvalidArgument)?;
             }
             _ = cancellation_token.cancelled() =>{
                 return Err(Status::cancelled("Request was cancelled"));
@@ -103,7 +102,7 @@ impl proto::KafkaService for KafkaService {
 
         let response = get_cluster_metadata(query)
             .await
-            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+            .map_err(ApplicationError::InvalidArgument)?;
 
         let proto_response = kafka_cluster_metadata_to_proto_response(response);
 
@@ -120,7 +119,7 @@ impl proto::KafkaService for KafkaService {
         let query = proto_get_topic_partition_offsets_internal(proto_request);
         let response = get_topic_partition_offsets(query)
             .await
-            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+            .map_err(ApplicationError::InvalidArgument)?;
 
         let proto_response = topic_partition_offsets_to_proto_response(response);
         Ok(Response::new(proto_response))
@@ -142,7 +141,7 @@ impl proto::KafkaService for KafkaService {
 
         let rx = get_topic_lags(query, token)
             .await
-            .map_err(|e| Status::invalid_argument(format!("{:?}", e)))?;
+            .map_err(ApplicationError::InvalidArgument)?;
 
         let stream = ReceiverStream::new(rx)
             .map(topic_lag_result_to_proto_response)
