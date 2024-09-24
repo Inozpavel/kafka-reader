@@ -1,5 +1,8 @@
 use crate::consumer::{ConsumerWrapper, SecurityProtocol};
 use crate::queries::get_topic_lags::query::GetTopicLagsQueryInternal;
+use crate::queries::get_topic_lags::response::{
+    GroupInfo, GroupTopicLags, PartitionOffsetWithLag, ReadLagsResult,
+};
 use crate::queries::get_topic_partitions_with_offsets::MinMaxOffset;
 use anyhow::Context;
 use rdkafka::consumer::Consumer;
@@ -223,39 +226,7 @@ fn get_group_topic_offsets(
         lags,
         topic,
     };
-    debug!("Got Group lags: {:?}", group_topic_lags);
+    debug!("Got group lags: {:?}", group_topic_lags);
 
     Ok(Some(group_topic_lags))
-}
-
-#[derive(Debug)]
-pub struct GroupInfo {
-    pub id: String,
-    pub state: String,
-}
-
-#[derive(Debug)]
-pub enum ReadLagsResult {
-    GroupTopicLag(GroupTopicLags),
-    BrokerError(anyhow::Error),
-}
-
-#[derive(Debug)]
-pub struct GroupTopicLags {
-    pub group_info: GroupInfo,
-    pub topic: Arc<String>,
-    pub lags: Vec<PartitionOffsetWithLag>,
-}
-
-#[derive(Debug)]
-pub struct PartitionOffsetWithLag {
-    pub partition: i32,
-    pub offset: Option<i64>,
-    pub lag: i64,
-}
-
-impl PartitionOffsetWithLag {
-    pub fn set_lag(&mut self, lag: i64) {
-        self.lag = lag
-    }
 }
