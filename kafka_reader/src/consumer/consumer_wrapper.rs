@@ -1,9 +1,10 @@
 use crate::connection_settings::ConnectionSettings;
 use crate::consumer::AutoOffsetReset;
 use anyhow::Context;
-use rdkafka::consumer::StreamConsumer;
+use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::ClientConfig;
 use std::ops::{Deref, DerefMut};
+use std::time::Duration;
 
 pub struct ConsumerWrapper {
     consumer: StreamConsumer,
@@ -55,6 +56,25 @@ impl ConsumerWrapper {
         }
 
         Ok(config)
+    }
+
+    pub fn get_topic_partitions_count(
+        &self,
+        topic: &str,
+        timeout: Option<Duration>,
+    ) -> Result<usize, anyhow::Error> {
+        let metadata = self
+            .consumer
+            .fetch_metadata(Some(topic), timeout)
+            .context("While fetching topic metadata")?;
+
+        let topic_metadata = metadata
+            .topics()
+            .iter()
+            .find(|x| x.name() == topic)
+            .context("Requested topic wasn't found")?;
+
+        Ok(topic_metadata.partitions().len())
     }
 }
 

@@ -301,9 +301,9 @@ pub fn read_result_to_proto_response(
                 returned_count: message_counters.returned_message_count,
             })
         }
-        ReadMessagesQueryInternalResponse::BrokerError(broker_error) => {
+        ReadMessagesQueryInternalResponse::ConsumeError(broker_error) => {
             read_messages_query_response::Response::BrokerError(proto::ErrorDto {
-                message: format!("{:?}", broker_error.message),
+                message: format!("{:?}", broker_error.error),
             })
         }
     };

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub enum ReadMessagesQueryInternalResponse {
     KafkaMessage(KafkaMessage),
     MessagesCounters(MessagesCounters),
-    BrokerError(BrokerError),
+    ConsumeError(ConsumeError),
 }
 
 #[derive(Debug)]
@@ -31,6 +31,6 @@ pub struct MessagesCounters {
 }
 
 #[derive(Debug)]
-pub struct BrokerError {
-    pub message: String,
+pub struct ConsumeError {
+    pub error: anyhow::Error,
 }
