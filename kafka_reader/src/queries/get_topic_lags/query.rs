@@ -1,9 +1,8 @@
-use crate::consumer::SecurityProtocol;
+use crate::connection_settings::KafkaConnectionSettings;
 
 #[derive(Debug)]
 pub struct GetTopicLagsQueryInternal {
-    pub brokers: Vec<String>,
+    pub connection_settings: KafkaConnectionSettings,
     pub topic: String,
     pub group_search: Option<String>,
-    pub security_protocol: SecurityProtocol,
 }

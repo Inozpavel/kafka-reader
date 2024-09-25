@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod commands;
+pub mod connection_settings;
 pub mod consumer;
 pub mod error;
 pub mod producer;

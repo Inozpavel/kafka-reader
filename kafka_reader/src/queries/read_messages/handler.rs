@@ -37,13 +37,9 @@ pub async fn run_read_messages_to_channel(
         StartFrom::Latest => AutoOffsetReset::Latest,
     };
     let group = format!("kafka-reader-{}", Uuid::now_v7());
-    let consumer_wrapper = ConsumerWrapper::create_for_consuming(
-        &request.brokers,
-        request.security_protocol,
-        &group,
-        offset_reset,
-    )
-    .context("While creating consumer")?;
+    let consumer_wrapper =
+        ConsumerWrapper::create_for_consuming(&request.connection_settings, &group, offset_reset)
+            .context("While creating consumer")?;
     let consumer_wrapper = Arc::new(consumer_wrapper);
 
     let request = Arc::new(request);

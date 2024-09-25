@@ -1,14 +1,13 @@
-use crate::consumer::SecurityProtocol;
+use crate::connection_settings::KafkaConnectionSettings;
 use crate::queries::read_messages::Format;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ProduceMessagesCommandInternal {
-    pub brokers: Vec<String>,
+    pub connection_settings: KafkaConnectionSettings,
     pub topic: String,
     pub key_format: Option<Format>,
     pub body_format: Option<Format>,
-    pub security_protocol: SecurityProtocol,
     pub messages: Vec<ProduceMessage>,
 }
 

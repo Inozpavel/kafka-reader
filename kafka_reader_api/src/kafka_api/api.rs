@@ -98,7 +98,8 @@ impl proto::KafkaService for KafkaService {
     ) -> Result<Response<GetClusterMetadataQueryResponse>, Status> {
         let proto_request = request.into_inner();
 
-        let query = proto_get_cluster_metadata_to_internal(proto_request);
+        let query = proto_get_cluster_metadata_to_internal(proto_request)
+            .map_err(ApplicationError::InvalidArgument)?;
 
         let response = get_cluster_metadata(query)
             .await
@@ -116,7 +117,9 @@ impl proto::KafkaService for KafkaService {
     ) -> Result<Response<GetTopicPartitionsWithOffsetsQueryResponse>, Status> {
         let proto_request = request.into_inner();
 
-        let query = proto_get_topic_partition_offsets_internal(proto_request);
+        let query = proto_get_topic_partition_offsets_internal(proto_request)
+            .map_err(ApplicationError::InvalidArgument)?;
+
         let response = get_topic_partition_offsets(query)
             .await
             .map_err(ApplicationError::InvalidArgument)?;
@@ -134,7 +137,8 @@ impl proto::KafkaService for KafkaService {
         request: Request<GetTopicLagsQuery>,
     ) -> Result<Response<Self::GetTopicLagsStream>, Status> {
         let proto_request = request.into_inner();
-        let query = proto_get_lags_to_internal(proto_request);
+        let query =
+            proto_get_lags_to_internal(proto_request).map_err(ApplicationError::InvalidArgument)?;
 
         let token = CancellationToken::new();
         let guard = token.clone().drop_guard();

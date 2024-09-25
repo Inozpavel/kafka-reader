@@ -18,7 +18,7 @@ service KafkaService {
 
 message ReadMessages {
   message ReadMessagesQuery {
-    repeated string brokers = 1;
+    ConnectionSettingsDto connection_settings = 1;
     string topic = 2;
     MessageFormatDto key_format = 3;
     MessageFormatDto body_format = 4;
@@ -26,7 +26,6 @@ message ReadMessages {
     ReadLimitDto limit = 6;
     ValueFilterDto body_filter = 7;
     ValueFilterDto key_filter = 8;
-    SecurityProtocolDto security_protocol = 9;
   }
   message StartFromDto {
     oneof from {
@@ -105,12 +104,11 @@ message ReadMessages {
 
 message ProduceMessages {
   message ProduceMessagesCommand {
-    repeated string brokers = 1;
+    ConnectionSettingsDto connection_settings = 1;
     string topic = 2;
     MessageFormatDto key_format = 3;
     MessageFormatDto body_format = 4;
-    SecurityProtocolDto security_protocol = 5;
-    repeated ProduceMessageDto messages = 6;
+    repeated ProduceMessageDto messages = 5;
   }
   message ProduceMessageDto {
     google.protobuf.Int32Value partition = 1;
@@ -161,8 +159,7 @@ message SecurityProtocolDto {
 
 message GetClusterMetadata {
   message GetClusterMetadataQuery {
-    repeated string brokers = 1;
-    SecurityProtocolDto security_protocol = 2;
+    ConnectionSettingsDto connection_settings = 1;
   }
 
   message GetClusterMetadataQueryResponse {
@@ -181,9 +178,8 @@ message GetClusterMetadata {
 
 message GetTopicPartitionsWithOffsets {
   message GetTopicPartitionsWithOffsetsQuery {
-    repeated string brokers = 1;
-    SecurityProtocolDto security_protocol = 2;
-    string topic = 3;
+    ConnectionSettingsDto connection_settings = 1;
+    string topic = 2;
   }
 
   message GetTopicPartitionsWithOffsetsQueryResponse {
@@ -199,10 +195,9 @@ message GetTopicPartitionsWithOffsets {
 
 message GetTopicLags {
   message GetTopicLagsQuery {
-    repeated string brokers = 1;
-    SecurityProtocolDto security_protocol = 2;
-    string topic = 3;
-    google.protobuf.StringValue group_search = 4;
+    ConnectionSettingsDto connection_settings = 1;
+    string topic = 2;
+    google.protobuf.StringValue group_search = 3;
   }
 
   message GetTopicLagsQueryResponse {
@@ -224,6 +219,11 @@ message GetTopicLags {
     int32 partition = 2;
     int64 lag = 3;
   }
+}
+
+message ConnectionSettingsDto {
+  repeated string brokers = 1;
+  SecurityProtocolDto security_protocol = 2;
 }
 
 message ErrorDto {

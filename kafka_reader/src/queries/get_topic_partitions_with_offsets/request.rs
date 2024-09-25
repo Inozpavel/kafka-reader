@@ -1,7 +1,6 @@
-use crate::consumer::SecurityProtocol;
+use crate::connection_settings::KafkaConnectionSettings;
 
 pub struct GetTopicPartitionsWithOffsetsQueryInternal {
-    pub brokers: Vec<String>,
-    pub security_protocol: SecurityProtocol,
+    pub connection_settings: KafkaConnectionSettings,
     pub topic: String,
 }
