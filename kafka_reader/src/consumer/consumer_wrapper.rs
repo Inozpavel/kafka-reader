@@ -1,8 +1,10 @@
-use crate::consumer::{AutoOffsetReset, SecurityProtocol};
-use anyhow::{bail, Context};
-use rdkafka::consumer::StreamConsumer;
+use crate::connection_settings::ConnectionSettings;
+use crate::consumer::AutoOffsetReset;
+use anyhow::Context;
+use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::ClientConfig;
 use std::ops::{Deref, DerefMut};
+use std::time::Duration;
 
 pub struct ConsumerWrapper {
     consumer: StreamConsumer,
@@ -10,14 +12,13 @@ pub struct ConsumerWrapper {
 
 impl ConsumerWrapper {
     pub fn create_for_consuming(
-        brokers: &[String],
-        security_protocol: SecurityProtocol,
+        kafka_connection_settings: &ConnectionSettings,
         group: &str,
         auto_offset_reset: AutoOffsetReset,
     ) -> Result<Self, anyhow::Error> {
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
         let consumer: StreamConsumer =
-            Self::create_common_config(brokers, security_protocol, Some(group))
+            Self::create_common_config(kafka_connection_settings, Some(group))
                 .context("While creating common config")?
                 .set("auto.offset.reset", auto_offset_reset.to_string())
                 .set("enable.partition.eof", "false")
@@ -34,39 +35,46 @@ impl ConsumerWrapper {
     }
 
     pub fn create_for_non_consuming(
-        brokers: &[String],
-        security_protocol: SecurityProtocol,
+        kafka_connection_settings: &ConnectionSettings,
         group: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let consumer: StreamConsumer =
-            Self::create_common_config(brokers, security_protocol, group)
-                .context("While creating common config")?
-                .create()?;
+        let consumer: StreamConsumer = Self::create_common_config(kafka_connection_settings, group)
+            .context("While creating common config")?
+            .create()?;
 
         Ok(Self { consumer })
     }
 
     fn create_common_config(
-        brokers: &[String],
-        security_protocol: SecurityProtocol,
+        kafka_connection_settings: &ConnectionSettings,
         group: Option<&str>,
     ) -> Result<ClientConfig, anyhow::Error> {
-        if brokers.is_empty() {
-            bail!("No brokers specified")
-        }
-        let mut config = ClientConfig::new();
-
-        let brokers_string = brokers.join(",");
-        config
-            .set("bootstrap.servers", brokers_string)
-            // .set("debug", "all")
-            .set("security.protocol", security_protocol.to_string());
+        let mut config = ClientConfig::try_from(kafka_connection_settings)?;
 
         if let Some(group) = group {
             config.set("group.id", group);
         }
 
         Ok(config)
+    }
+
+    pub fn get_topic_partitions_count(
+        &self,
+        topic: &str,
+        timeout: Option<Duration>,
+    ) -> Result<usize, anyhow::Error> {
+        let metadata = self
+            .consumer
+            .fetch_metadata(Some(topic), timeout)
+            .context("While fetching topic metadata")?;
+
+        let topic_metadata = metadata
+            .topics()
+            .iter()
+            .find(|x| x.name() == topic)
+            .context("Requested topic wasn't found")?;
+
+        Ok(topic_metadata.partitions().len())
     }
 }
 

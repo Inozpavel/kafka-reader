@@ -1,9 +1,8 @@
-use crate::consumer::SecurityProtocol;
+use crate::connection_settings::ConnectionSettings;
 
 #[derive(Debug)]
 pub struct GetTopicLagsQueryInternal {
-    pub brokers: Vec<String>,
+    pub connection_settings: ConnectionSettings,
     pub topic: String,
     pub group_search: Option<String>,
-    pub security_protocol: SecurityProtocol,
 }

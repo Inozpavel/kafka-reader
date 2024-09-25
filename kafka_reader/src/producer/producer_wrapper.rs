@@ -1,4 +1,4 @@
-use crate::consumer::SecurityProtocol;
+use crate::connection_settings::ConnectionSettings;
 use anyhow::Context;
 use rdkafka::producer::FutureProducer;
 use rdkafka::ClientConfig;
@@ -9,19 +9,13 @@ pub struct ProducerWrapper {
 }
 
 impl ProducerWrapper {
-    pub fn create(
-        brokers: Vec<String>,
-        security_protocol: SecurityProtocol,
-    ) -> Result<Self, anyhow::Error> {
-        let servers = brokers.join(",");
-        let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", servers)
-            .set("security.protocol", security_protocol.to_string())
+    pub fn create(kafka_connection_settings: &ConnectionSettings) -> Result<Self, anyhow::Error> {
+        let mut config = ClientConfig::try_from(kafka_connection_settings)?;
+        let producer: FutureProducer = config
             .set("message.timeout.ms", "5000")
             .set("linger.ms", "0")
-            // .set("debug", "")
             .create()
-            .context("While creating a kafka FutureProducer")?;
+            .context("While creating kafka FutureProducer")?;
 
         Ok(Self { producer })
     }

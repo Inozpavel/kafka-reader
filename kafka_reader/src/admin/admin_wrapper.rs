@@ -1,4 +1,4 @@
-use crate::consumer::SecurityProtocol;
+use crate::connection_settings::ConnectionSettings;
 use anyhow::Context;
 use rdkafka::admin::AdminClient;
 use rdkafka::client::DefaultClientContext;
@@ -10,21 +10,14 @@ pub struct AdminWrapper {
 }
 
 impl AdminWrapper {
-    pub fn create(
-        brokers: &[String],
-        security_protocol: SecurityProtocol,
-    ) -> Result<Self, anyhow::Error> {
-        let brokers_string = brokers.join(",");
-
+    pub fn create(connection_settings: ConnectionSettings) -> Result<Self, anyhow::Error> {
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
-        let client: AdminClient<DefaultClientContext> = ClientConfig::new()
-            .set("bootstrap.servers", brokers_string)
-            .set("message.max.bytes", "1000000000")
-            .set("receive.message.max.bytes", "2147483647")
-            .set("security.protocol", security_protocol.to_string())
-            // .set("debug", "")
-            .create()
-            .context("While creating kafka StreamConsumer")?;
+        let client: AdminClient<DefaultClientContext> =
+            ClientConfig::try_from(&connection_settings)?
+                .set("message.max.bytes", "1000000000")
+                .set("receive.message.max.bytes", "2147483647")
+                .create()
+                .context("While creating kafka StreamConsumer")?;
 
         Ok(Self { client })
     }

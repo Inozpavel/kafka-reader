@@ -11,12 +11,12 @@ use crate::kafka_api::proto::start_from_dto::FromBeginningDto;
 use crate::kafka_api::proto::value_filter_dto::condition;
 use crate::kafka_api::proto::{
     filter_kind_dto, message_format_dto, read_limit_dto, read_messages_query_response,
-    security_protocol_dto, start_from_dto, ErrorDto, MessageFormatDto, ReadLimitDto,
-    ReadMessagesQuery, ReadMessagesQueryResponse, SecurityProtocolDto, StartFromDto,
+    security_protocol_dto, start_from_dto, ConnectionSettingsDto, ErrorDto, MessageFormatDto,
+    ReadLimitDto, ReadMessagesQuery, ReadMessagesQueryResponse, SecurityProtocolDto, StartFromDto,
     ValueFilterDto,
 };
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, bail, Context};
 
 use crate::kafka_api::proto::get_topic_lags::{
     get_topic_lags_query_response, GetTopicLagsQuery, GetTopicLagsQueryResponse, GroupLagsDto,
@@ -27,6 +27,7 @@ use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
     PartitionDataWatermarksDto,
 };
 use kafka_reader::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
+use kafka_reader::connection_settings::ConnectionSettings;
 use kafka_reader::consumer::SecurityProtocol;
 use kafka_reader::queries::get_cluster_metadata::{
     GetClusterMetadataQueryInternal, GetClusterMetadataQueryInternalResponse,
@@ -59,32 +60,45 @@ pub fn proto_read_messages_to_internal(
 
     let start_from = proto_start_from_to_from(model.start_from)?;
     let limit = proto_limit_to_limit(model.limit)?;
-    let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
+    let connection_settings = proto_connection_setting_to_internal(model.connection_settings)?;
 
     let result = ReadMessagesQueryInternal {
         topic: model.topic,
-        brokers: model.brokers,
+        connection_settings,
         key_format,
         body_format,
         key_filter: key_value_filter,
         body_filter: body_value_filter,
         start_from,
         limit,
-        security_protocol,
     };
 
     Ok(result)
 }
 
-pub fn proto_get_lags_to_internal(model: GetTopicLagsQuery) -> GetTopicLagsQueryInternal {
+fn proto_connection_setting_to_internal(
+    model: Option<ConnectionSettingsDto>,
+) -> Result<ConnectionSettings, anyhow::Error> {
+    let Some(model) = model else {
+        bail!("Connection settings can't be null")
+    };
     let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
-
-    GetTopicLagsQueryInternal {
-        topic: model.topic,
+    Ok(ConnectionSettings {
         brokers: model.brokers,
         security_protocol,
+    })
+}
+
+pub fn proto_get_lags_to_internal(
+    model: GetTopicLagsQuery,
+) -> Result<GetTopicLagsQueryInternal, anyhow::Error> {
+    let connection_settings = proto_connection_setting_to_internal(model.connection_settings)?;
+
+    Ok(GetTopicLagsQueryInternal {
+        topic: model.topic,
+        connection_settings,
         group_search: model.group_search,
-    }
+    })
 }
 
 pub fn proto_produce_messages_to_internal(
@@ -95,18 +109,18 @@ pub fn proto_produce_messages_to_internal(
     let body_format =
         proto_format_to_format(model.body_format).context("While converting body_format")?;
 
-    let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
     let messages = model
         .messages
         .into_par_iter()
         .map(proto_produce_message_to_internal)
         .collect();
+
+    let connection_settings = proto_connection_setting_to_internal(model.connection_settings)?;
     let result = ProduceMessagesCommandInternal {
+        connection_settings,
         topic: model.topic,
-        brokers: model.brokers,
         key_format,
         body_format,
-        security_protocol,
         messages,
     };
 
@@ -115,23 +129,22 @@ pub fn proto_produce_messages_to_internal(
 
 pub fn proto_get_cluster_metadata_to_internal(
     model: GetClusterMetadataQuery,
-) -> GetClusterMetadataQueryInternal {
-    let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
-    GetClusterMetadataQueryInternal {
-        brokers: model.brokers,
-        security_protocol,
-    }
+) -> Result<GetClusterMetadataQueryInternal, anyhow::Error> {
+    let connection_settings = proto_connection_setting_to_internal(model.connection_settings)?;
+
+    Ok(GetClusterMetadataQueryInternal {
+        connection_settings,
+    })
 }
 
 pub fn proto_get_topic_partition_offsets_internal(
     model: GetTopicPartitionsWithOffsetsQuery,
-) -> GetTopicPartitionsWithOffsetsQueryInternal {
-    let protocol = proto_security_protocol_to_protocol(model.security_protocol);
-    GetTopicPartitionsWithOffsetsQueryInternal {
-        brokers: model.brokers,
-        security_protocol: protocol,
+) -> Result<GetTopicPartitionsWithOffsetsQueryInternal, anyhow::Error> {
+    let connection_settings = proto_connection_setting_to_internal(model.connection_settings)?;
+    Ok(GetTopicPartitionsWithOffsetsQueryInternal {
+        connection_settings,
         topic: model.topic,
-    }
+    })
 }
 
 fn proto_produce_message_to_internal(model: ProduceMessageDto) -> ProduceMessage {
@@ -288,9 +301,9 @@ pub fn read_result_to_proto_response(
                 returned_count: message_counters.returned_message_count,
             })
         }
-        ReadMessagesQueryInternalResponse::BrokerError(broker_error) => {
+        ReadMessagesQueryInternalResponse::ConsumeError(broker_error) => {
             read_messages_query_response::Response::BrokerError(proto::ErrorDto {
-                message: format!("{:?}", broker_error.message),
+                message: format!("{:?}", broker_error.error),
             })
         }
     };

@@ -1,4 +1,5 @@
-use crate::consumer::{ConsumerWrapper, SecurityProtocol};
+use crate::connection_settings::ConnectionSettings;
+use crate::consumer::ConsumerWrapper;
 use crate::queries::get_topic_lags::query::GetTopicLagsQueryInternal;
 use crate::queries::get_topic_lags::response::{
     GroupInfo, GroupTopicLags, PartitionOffsetWithLag, ReadLagsResult,
@@ -40,7 +41,7 @@ async fn write_lags_to_channel(
     cancellation_token: CancellationToken,
 ) -> Result<(), anyhow::Error> {
     let consumer = Arc::new(
-        ConsumerWrapper::create_for_non_consuming(&query.brokers, query.security_protocol, None)
+        ConsumerWrapper::create_for_non_consuming(&query.connection_settings, None)
             .context("While creating consumer")?,
     );
 
@@ -83,24 +84,17 @@ async fn write_lags_to_channel(
 
     let watermarks = Arc::new(watermarks);
 
-    let brokers = Arc::new(query.brokers.clone());
+    let kafka_settings = Arc::new(query.connection_settings);
     for group in groups {
-        let tpl = topic_partitions.clone();
-        let brokers = brokers.clone();
+        let topic_partitions = topic_partitions.clone();
+        let kafka_settings = kafka_settings.clone();
         let topic = topic.clone();
         let tx = tx.clone();
         let watermarks = watermarks.clone();
 
         tokio::task::spawn(async move {
             let Ok(lags_result) = tokio::task::spawn_blocking(move || {
-                get_group_topic_offsets(
-                    watermarks,
-                    tpl,
-                    &brokers,
-                    query.security_protocol,
-                    group,
-                    topic,
-                )
+                get_group_topic_offsets(&kafka_settings, watermarks, topic_partitions, group, topic)
             })
             .await
             .inspect_err(|e| error!("{:?}", e)) else {
@@ -182,15 +176,14 @@ fn get_topic_partitions(
 }
 
 fn get_group_topic_offsets(
+    kafka_connection_settings: &ConnectionSettings,
     partitions_watermarks: Arc<HashMap<i32, MinMaxOffset>>,
     topic_partitions: TopicPartitionList,
-    brokers: &[String],
-    security_protocol: SecurityProtocol,
     group: GroupInfo,
     topic: Arc<String>,
 ) -> Result<Option<GroupTopicLags>, anyhow::Error> {
     let consumer =
-        ConsumerWrapper::create_for_non_consuming(brokers, security_protocol, Some(&group.id))?;
+        ConsumerWrapper::create_for_non_consuming(kafka_connection_settings, Some(&group.id))?;
     let committed_list = consumer
         .committed_offsets(topic_partitions, Duration::from_secs(15))
         .context("While fetching committed offsets")?;

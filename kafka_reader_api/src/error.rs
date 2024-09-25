@@ -10,7 +10,7 @@ impl From<ApplicationError> for Status {
         match value {
             ApplicationError::InvalidArgument(e) => {
                 error!("{e:?}");
-                Status::invalid_argument(format!("{e}"))
+                Status::invalid_argument(format!("{e:?}"))
             }
         }
     }

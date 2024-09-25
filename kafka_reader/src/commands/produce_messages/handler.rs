@@ -19,8 +19,8 @@ pub async fn produce_messages_to_topic(
     cancellation_token: CancellationToken,
 ) -> Result<(), anyhow::Error> {
     let preparer = RwLock::new(None);
-    let producer = ProducerWrapper::create(request.brokers, request.security_protocol)
-        .context("While creating producer")?;
+    let producer =
+        ProducerWrapper::create(&request.connection_settings).context("While creating producer")?;
 
     for message in request.messages.into_iter() {
         let key_bytes = to_bytes(
@@ -78,7 +78,7 @@ pub async fn produce_messages_to_topic(
         match result {
             Ok((_partition, _offset)) => {}
             Err((kafka_error, message)) => {
-                error!(?kafka_error, ?message)
+                error!("Produce error {:?} {:?}", kafka_error, message)
             }
         }
     }

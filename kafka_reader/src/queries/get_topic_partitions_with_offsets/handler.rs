@@ -23,9 +23,8 @@ pub async fn get_topic_partition_offsets(
 fn build_response(
     query: GetTopicPartitionsWithOffsetsQueryInternal,
 ) -> Result<GetTopicPartitionsWithOffsetsQueryResponseInternal, anyhow::Error> {
-    let consumer =
-        ConsumerWrapper::create_for_non_consuming(&query.brokers, query.security_protocol, None)
-            .context("While creating consumer")?;
+    let consumer = ConsumerWrapper::create_for_non_consuming(&query.connection_settings, None)
+        .context("While creating consumer")?;
 
     let metadata = consumer
         .fetch_metadata(Some(&query.topic), Timeout::After(Duration::from_secs(5)))

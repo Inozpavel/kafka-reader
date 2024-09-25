@@ -1,5 +1,4 @@
 use crate::consumer::PartitionOffset;
-use crate::error::ConvertError;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
@@ -7,7 +6,7 @@ use std::collections::HashMap;
 pub enum ReadMessagesQueryInternalResponse {
     KafkaMessage(KafkaMessage),
     MessagesCounters(MessagesCounters),
-    BrokerError(BrokerError),
+    ConsumeError(ConsumeError),
 }
 
 #[derive(Debug)]
@@ -19,6 +18,12 @@ pub struct KafkaMessage {
     pub headers: Option<HashMap<String, String>>,
 }
 
+#[derive(Debug)]
+pub struct ConvertError {
+    pub error: anyhow::Error,
+    pub partition_offset: PartitionOffset,
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct MessagesCounters {
     pub read_message_count: u64,
@@ -26,6 +31,6 @@ pub struct MessagesCounters {
 }
 
 #[derive(Debug)]
-pub struct BrokerError {
-    pub message: String,
+pub struct ConsumeError {
+    pub error: anyhow::Error,
 }

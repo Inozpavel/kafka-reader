@@ -1,7 +1,6 @@
-use crate::consumer::SecurityProtocol;
+use crate::connection_settings::ConnectionSettings;
 
 pub struct GetTopicPartitionsWithOffsetsQueryInternal {
-    pub brokers: Vec<String>,
-    pub security_protocol: SecurityProtocol,
+    pub connection_settings: ConnectionSettings,
     pub topic: String,
 }
