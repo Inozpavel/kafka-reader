@@ -1,5 +1,4 @@
 use crate::consumer::PartitionOffset;
-use crate::error::ConvertError;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
@@ -17,6 +16,12 @@ pub struct KafkaMessage {
     pub key: Result<Option<String>, ConvertError>,
     pub body: Result<Option<String>, ConvertError>,
     pub headers: Option<HashMap<String, String>>,
+}
+
+#[derive(Debug)]
+pub struct ConvertError {
+    pub error: anyhow::Error,
+    pub partition_offset: PartitionOffset,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

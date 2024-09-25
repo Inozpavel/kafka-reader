@@ -1,6 +1,6 @@
-use crate::connection_settings::KafkaConnectionSettings;
+use crate::connection_settings::ConnectionSettings;
 
 pub struct GetTopicPartitionsWithOffsetsQueryInternal {
-    pub connection_settings: KafkaConnectionSettings,
+    pub connection_settings: ConnectionSettings,
     pub topic: String,
 }

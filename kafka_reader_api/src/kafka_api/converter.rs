@@ -27,7 +27,7 @@ use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
     PartitionDataWatermarksDto,
 };
 use kafka_reader::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
-use kafka_reader::connection_settings::KafkaConnectionSettings;
+use kafka_reader::connection_settings::ConnectionSettings;
 use kafka_reader::consumer::SecurityProtocol;
 use kafka_reader::queries::get_cluster_metadata::{
     GetClusterMetadataQueryInternal, GetClusterMetadataQueryInternalResponse,
@@ -78,12 +78,12 @@ pub fn proto_read_messages_to_internal(
 
 fn proto_connection_setting_to_internal(
     model: Option<ConnectionSettingsDto>,
-) -> Result<KafkaConnectionSettings, anyhow::Error> {
+) -> Result<ConnectionSettings, anyhow::Error> {
     let Some(model) = model else {
         bail!("Connection settings can't be null")
     };
     let security_protocol = proto_security_protocol_to_protocol(model.security_protocol);
-    Ok(KafkaConnectionSettings {
+    Ok(ConnectionSettings {
         brokers: model.brokers,
         security_protocol,
     })

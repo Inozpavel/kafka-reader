@@ -1,7 +1,6 @@
 use crate::consumer::{AutoOffsetReset, ConsumerWrapper, PartitionOffset};
-use crate::error::ConvertError;
 use crate::queries::read_messages::{
-    BrokerError, FilterCondition, FilterKind, Format, KafkaMessage, MessagesCounters,
+    BrokerError, ConvertError, FilterCondition, FilterKind, Format, KafkaMessage, MessagesCounters,
     ProtobufDecodeWay, ReadLimit, ReadMessagesQueryInternal, ReadMessagesQueryInternalResponse,
     StartFrom, ValueFilter,
 };

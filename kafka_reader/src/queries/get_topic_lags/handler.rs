@@ -1,4 +1,4 @@
-use crate::connection_settings::KafkaConnectionSettings;
+use crate::connection_settings::ConnectionSettings;
 use crate::consumer::ConsumerWrapper;
 use crate::queries::get_topic_lags::query::GetTopicLagsQueryInternal;
 use crate::queries::get_topic_lags::response::{
@@ -176,7 +176,7 @@ fn get_topic_partitions(
 }
 
 fn get_group_topic_offsets(
-    kafka_connection_settings: &KafkaConnectionSettings,
+    kafka_connection_settings: &ConnectionSettings,
     partitions_watermarks: Arc<HashMap<i32, MinMaxOffset>>,
     topic_partitions: TopicPartitionList,
     group: GroupInfo,

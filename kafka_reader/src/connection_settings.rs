@@ -3,15 +3,15 @@ use anyhow::bail;
 use rdkafka::ClientConfig;
 
 #[derive(Debug)]
-pub struct KafkaConnectionSettings {
+pub struct ConnectionSettings {
     pub brokers: Vec<String>,
     pub security_protocol: SecurityProtocol,
 }
 
-impl TryFrom<&KafkaConnectionSettings> for ClientConfig {
+impl TryFrom<&ConnectionSettings> for ClientConfig {
     type Error = anyhow::Error;
 
-    fn try_from(value: &KafkaConnectionSettings) -> Result<Self, Self::Error> {
+    fn try_from(value: &ConnectionSettings) -> Result<Self, Self::Error> {
         if value.brokers.is_empty() {
             bail!("No brokers specified")
         }

@@ -1,4 +1,4 @@
-use crate::connection_settings::KafkaConnectionSettings;
+use crate::connection_settings::ConnectionSettings;
 use crate::consumer::AutoOffsetReset;
 use anyhow::Context;
 use rdkafka::consumer::StreamConsumer;
@@ -11,7 +11,7 @@ pub struct ConsumerWrapper {
 
 impl ConsumerWrapper {
     pub fn create_for_consuming(
-        kafka_connection_settings: &KafkaConnectionSettings,
+        kafka_connection_settings: &ConnectionSettings,
         group: &str,
         auto_offset_reset: AutoOffsetReset,
     ) -> Result<Self, anyhow::Error> {
@@ -34,7 +34,7 @@ impl ConsumerWrapper {
     }
 
     pub fn create_for_non_consuming(
-        kafka_connection_settings: &KafkaConnectionSettings,
+        kafka_connection_settings: &ConnectionSettings,
         group: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
         let consumer: StreamConsumer = Self::create_common_config(kafka_connection_settings, group)
@@ -45,7 +45,7 @@ impl ConsumerWrapper {
     }
 
     fn create_common_config(
-        kafka_connection_settings: &KafkaConnectionSettings,
+        kafka_connection_settings: &ConnectionSettings,
         group: Option<&str>,
     ) -> Result<ClientConfig, anyhow::Error> {
         let mut config = ClientConfig::try_from(kafka_connection_settings)?;
