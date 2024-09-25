@@ -2,3 +2,6 @@
 members = ["kafka_reader", "kafka_reader_api", "proto_json_converter"]
 resolver = "2"
 
+[profile.release]
+lto = true
+codegen-units = 1
