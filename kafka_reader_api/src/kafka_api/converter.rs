@@ -1,19 +1,21 @@
-use crate::kafka_api::proto;
 use crate::kafka_api::proto::get_cluster_metadata::{
     GetClusterMetadataQuery, GetClusterMetadataQueryResponse, KafkaBrokerMetadataDto,
     KafkaTopicMetadataDto,
 };
 use crate::kafka_api::proto::message_format_dto::proto_format_dto;
-use crate::kafka_api::proto::produce_messages::{ProduceMessageDto, ProduceMessagesCommand};
+use crate::kafka_api::proto::produce_messages::{
+    produce_messages_command_response, DeliveryResultDto, ProduceMessageDto,
+    ProduceMessagesCommand, ProduceMessagesCommandResponse,
+};
 use crate::kafka_api::proto::read_limit_dto::NoLimitDto;
 use crate::kafka_api::proto::security_protocol_dto::PlaintextProtocolDto;
 use crate::kafka_api::proto::start_from_dto::FromBeginningDto;
 use crate::kafka_api::proto::value_filter_dto::condition;
 use crate::kafka_api::proto::{
     filter_kind_dto, message_format_dto, read_limit_dto, read_messages_query_response,
-    security_protocol_dto, start_from_dto, ConnectionSettingsDto, ErrorDto, MessageFormatDto,
-    ReadLimitDto, ReadMessagesQuery, ReadMessagesQueryResponse, SecurityProtocolDto, StartFromDto,
-    ValueFilterDto,
+    security_protocol_dto, start_from_dto, ConnectionSettingsDto, ErrorDto, KafkaMessageDto,
+    MessageFormatDto, MessagesCountersDto, ReadLimitDto, ReadMessagesQuery,
+    ReadMessagesQueryResponse, SecurityProtocolDto, StartFromDto, ValueFilterDto,
 };
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, bail, Context};
@@ -26,7 +28,9 @@ use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
     GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
     PartitionDataWatermarksDto,
 };
-use kafka_reader::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
+use kafka_reader::commands::produce_messages::{
+    ProduceMessage, ProduceMessagesCommandInternal, ProduceMessagesCommandInternalResponse,
+};
 use kafka_reader::connection_settings::ConnectionSettings;
 use kafka_reader::consumer::SecurityProtocol;
 use kafka_reader::queries::get_cluster_metadata::{
@@ -279,10 +283,10 @@ fn proto_limit_to_limit(model: Option<ReadLimitDto>) -> Result<ReadLimit, anyhow
 
 pub fn read_result_to_proto_response(
     model: ReadMessagesQueryInternalResponse,
-) -> Result<ReadMessagesQueryResponse, Status> {
+) -> ReadMessagesQueryResponse {
     let variant = match model {
         ReadMessagesQueryInternalResponse::KafkaMessage(kafka_message) => {
-            read_messages_query_response::Response::KafkaMessage(proto::KafkaMessageDto {
+            read_messages_query_response::Response::KafkaMessage(KafkaMessageDto {
                 partition: *kafka_message.partition_offset.partition(),
                 offset: *kafka_message.partition_offset.offset(),
                 timestamp: Some(kafka_message.timestamp.to_proto_timestamp()),
@@ -296,20 +300,20 @@ pub fn read_result_to_proto_response(
             })
         }
         ReadMessagesQueryInternalResponse::MessagesCounters(message_counters) => {
-            read_messages_query_response::Response::Counters(proto::MessagesCountersDto {
+            read_messages_query_response::Response::Counters(MessagesCountersDto {
                 read_count: message_counters.read_message_count,
                 returned_count: message_counters.returned_message_count,
             })
         }
-        ReadMessagesQueryInternalResponse::ConsumeError(broker_error) => {
-            read_messages_query_response::Response::BrokerError(proto::ErrorDto {
-                message: format!("{:?}", broker_error.error),
+        ReadMessagesQueryInternalResponse::ConsumeError(error) => {
+            read_messages_query_response::Response::Error(ErrorDto {
+                message: format!("{:?}", error.error),
             })
         }
     };
-    Ok(ReadMessagesQueryResponse {
+    ReadMessagesQueryResponse {
         response: Some(variant),
-    })
+    }
 }
 
 pub fn topic_lag_result_to_proto_response(
@@ -317,7 +321,7 @@ pub fn topic_lag_result_to_proto_response(
 ) -> Result<GetTopicLagsQueryResponse, Status> {
     let variant = match model {
         ReadLagsResult::GroupTopicLag(lags) => {
-            let response = to_response(lags);
+            let response = group_lags_to_response(lags);
             get_topic_lags_query_response::Response::Lags(response)
         }
         ReadLagsResult::BrokerError(e) => {
@@ -331,7 +335,7 @@ pub fn topic_lag_result_to_proto_response(
     })
 }
 
-fn to_response(model: GroupTopicLags) -> GroupLagsDto {
+fn group_lags_to_response(model: GroupTopicLags) -> GroupLagsDto {
     let partition_lag_dto = model
         .lags
         .into_iter()
@@ -349,6 +353,28 @@ fn to_response(model: GroupTopicLags) -> GroupLagsDto {
     };
     GroupLagsDto {
         group_topic_lags: vec![dto],
+    }
+}
+
+pub fn produce_message_result_to_response(
+    model: ProduceMessagesCommandInternalResponse,
+) -> ProduceMessagesCommandResponse {
+    let variant = match model {
+        ProduceMessagesCommandInternalResponse::Error(e) => {
+            produce_messages_command_response::Response::Error(ErrorDto {
+                message: format!("{:?}", e),
+            })
+        }
+        ProduceMessagesCommandInternalResponse::ProducedMessageInfo(info) => {
+            produce_messages_command_response::Response::DeliveryResult(DeliveryResultDto {
+                partition: info.partition,
+                offset: info.offset,
+            })
+        }
+    };
+
+    ProduceMessagesCommandResponse {
+        response: Some(variant),
     }
 }
 pub fn kafka_cluster_metadata_to_proto_response(
