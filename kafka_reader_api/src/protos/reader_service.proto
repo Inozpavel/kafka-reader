@@ -10,7 +10,7 @@ package kafka_reader_api;
 
 service KafkaService {
   rpc ReadMessages(ReadMessages.ReadMessagesQuery) returns (stream ReadMessages.ReadMessagesQueryResponse);
-  rpc ProduceMessages(ProduceMessages.ProduceMessagesCommand) returns (ProduceMessages.ProduceMessagesCommandResponse);
+  rpc ProduceMessages(ProduceMessages.ProduceMessagesCommand) returns (stream ProduceMessages.ProduceMessagesCommandResponse);
   rpc GetClusterMetadata(GetClusterMetadata.GetClusterMetadataQuery) returns (GetClusterMetadata.GetClusterMetadataQueryResponse);
   rpc GetTopicPartitionsWithOffsets(GetTopicPartitionsWithOffsets.GetTopicPartitionsWithOffsetsQuery) returns (GetTopicPartitionsWithOffsets.GetTopicPartitionsWithOffsetsQueryResponse);
   rpc GetTopicLags(GetTopicLags.GetTopicLagsQuery) returns (stream GetTopicLags.GetTopicLagsQueryResponse);
@@ -84,7 +84,7 @@ message ReadMessages {
     oneof response {
       KafkaMessageDto kafka_message = 1;
       MessagesCountersDto counters = 2;
-      ErrorDto broker_error = 3;
+      ErrorDto error = 3;
     }
   }
   message KafkaMessageDto {
@@ -117,13 +117,15 @@ message ProduceMessages {
     map<string, string> headers = 4;
   }
   message ProduceMessagesCommandResponse {
-    repeated DeliveryResultDto delivery_results = 1;
+    oneof response {
+      DeliveryResultDto delivery_result = 1;
+      ErrorDto error = 2;
+    }
   }
 
   message DeliveryResultDto {
     int32 partition = 1;
     int64 offset = 2;
-    int64 error = 3;
   }
 }
 

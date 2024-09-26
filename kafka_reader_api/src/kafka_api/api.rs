@@ -12,10 +12,11 @@ use crate::kafka_api::proto::produce_messages::{
 };
 use crate::kafka_api::proto::{ReadMessagesQuery, ReadMessagesQueryResponse};
 use crate::kafka_api::{
-    kafka_cluster_metadata_to_proto_response, proto, proto_get_cluster_metadata_to_internal,
-    proto_get_lags_to_internal, proto_get_topic_partition_offsets_internal,
-    proto_produce_messages_to_internal, proto_read_messages_to_internal,
-    topic_lag_result_to_proto_response, topic_partition_offsets_to_proto_response,
+    kafka_cluster_metadata_to_proto_response, produce_message_result_to_response, proto,
+    proto_get_cluster_metadata_to_internal, proto_get_lags_to_internal,
+    proto_get_topic_partition_offsets_internal, proto_produce_messages_to_internal,
+    proto_read_messages_to_internal, topic_lag_result_to_proto_response,
+    topic_partition_offsets_to_proto_response,
 };
 use crate::util::StreamDataExtension;
 use kafka_reader::commands::produce_messages::produce_messages_to_topic;
@@ -23,7 +24,6 @@ use kafka_reader::queries::get_cluster_metadata::get_cluster_metadata;
 use kafka_reader::queries::get_topic_lags::get_topic_lags;
 use kafka_reader::queries::get_topic_partitions_with_offsets::get_topic_partition_offsets;
 use kafka_reader::queries::read_messages::run_read_messages_to_channel;
-use tokio::select;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
@@ -58,15 +58,22 @@ impl proto::KafkaService for KafkaService {
             .await
             .map_err(ApplicationError::InvalidArgument)?;
 
-        let stream = ReceiverStream::new(rx).map(read_result_to_proto_response);
-        Ok(Response::new(Box::new(stream.with_data(guard))))
+        let stream = ReceiverStream::new(rx)
+            .map(read_result_to_proto_response)
+            .map(Ok)
+            .with_data(guard);
+
+        Ok(Response::new(Box::new(stream)))
     }
+
+    type ProduceMessagesStream =
+        Box<dyn Stream<Item = Result<ProduceMessagesCommandResponse, Status>> + Send + Unpin>;
 
     #[tracing::instrument(skip_all)]
     async fn produce_messages(
         &self,
         request: Request<ProduceMessagesCommand>,
-    ) -> Result<Response<ProduceMessagesCommandResponse>, Status> {
+    ) -> Result<Response<Self::ProduceMessagesStream>, Status> {
         debug!("New request: {:?}", request);
         let proto_produce_request = request.into_inner();
 
@@ -75,20 +82,18 @@ impl proto::KafkaService for KafkaService {
 
         debug!("Mapped request: {:?}", command);
         let cancellation_token = CancellationToken::new();
-        let _drop_guard = cancellation_token.clone().drop_guard();
+        let guard = cancellation_token.clone().drop_guard();
 
-        select! {
-            result = produce_messages_to_topic(command, cancellation_token.clone()) =>{
-                result.map_err(ApplicationError::InvalidArgument)?;
-            }
-            _ = cancellation_token.cancelled() =>{
-                return Err(Status::cancelled("Request was cancelled"));
-            }
-        }
+        let rx = produce_messages_to_topic(command, cancellation_token.clone())
+            .await
+            .map_err(ApplicationError::InvalidArgument)?;
 
-        Ok(Response::new(ProduceMessagesCommandResponse {
-            delivery_results: vec![],
-        }))
+        let stream = ReceiverStream::new(rx)
+            .map(produce_message_result_to_response)
+            .map(Ok)
+            .with_data(guard);
+
+        Ok(Response::new(Box::new(stream)))
     }
 
     #[tracing::instrument(skip_all)]

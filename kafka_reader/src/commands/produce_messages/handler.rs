@@ -1,87 +1,143 @@
-use crate::commands::produce_messages::ProduceMessagesCommandInternal;
+use crate::commands::produce_messages::response::{
+    ProduceMessagesCommandInternalResponse, ProducedMessageInfo,
+};
+use crate::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
 use crate::producer::ProducerWrapper;
 use crate::queries::read_messages::{Format, ProtobufDecodeWay};
 use crate::utils::create_holder;
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use proto_json_converter::{json_string_to_proto_bytes, ProtoDescriptorPreparer};
 use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::FutureRecord;
 use rdkafka::util::Timeout;
+use std::sync::Arc;
 use tokio::select;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, info_span, Instrument};
 
 pub async fn produce_messages_to_topic(
-    request: ProduceMessagesCommandInternal,
+    mut request: ProduceMessagesCommandInternal,
     cancellation_token: CancellationToken,
-) -> Result<(), anyhow::Error> {
-    let preparer = RwLock::new(None);
+) -> Result<Receiver<ProduceMessagesCommandInternalResponse>, anyhow::Error> {
+    let preparer = Arc::new(RwLock::new(None));
     let producer =
         ProducerWrapper::create(&request.connection_settings).context("While creating producer")?;
 
-    for message in request.messages.into_iter() {
-        let key_bytes = to_bytes(
-            message.key,
-            request.key_format.as_ref().unwrap_or(&Format::String),
-            &preparer,
-        )
-        .await
-        .context("While converting key to bytes")?;
+    let (tx, rx) = tokio::sync::mpsc::channel(128);
 
-        let body_bytes = to_bytes(
-            message.body,
-            request.body_format.as_ref().unwrap_or(&Format::String),
-            &preparer,
-        )
-        .await
-        .context("While converting body to bytes")?;
+    let mut messages = vec![];
+    std::mem::swap(&mut request.messages, &mut messages);
 
-        let mut headers = None;
-        if !message.headers.is_empty() {
-            let mut new_headers = OwnedHeaders::new_with_capacity(message.headers.len());
-
-            for (header_key, header_value) in &message.headers {
-                new_headers = new_headers.insert(Header {
-                    key: header_key.as_str(),
-                    value: Some(header_value.as_bytes()),
-                })
-            }
-
-            headers = Some(new_headers);
-        };
-        let record = FutureRecord {
-            topic: &request.topic,
-            partition: message.partition,
-            timestamp: None,
-            key: key_bytes.as_ref(),
-            payload: body_bytes.as_ref(),
-            headers,
-        };
-
-        let send_result = select! {
-            send_result = producer.send(record, Timeout::Never) => {
-                Some(send_result)
-            }
-            _ = cancellation_token.cancelled() => {
-                info!("Producing to topic {} was cancelled", request.topic);
-                None
-            }
-        };
-
-        let Some(result) = send_result else {
-            return Ok(());
-        };
-
-        match result {
-            Ok((_partition, _offset)) => {}
-            Err((kafka_error, message)) => {
-                error!("Produce error {:?} {:?}", kafka_error, message)
-            }
+    let request = Arc::new(request);
+    let producer = Arc::new(producer);
+    for message in messages.into_iter() {
+        let tx = tx.clone();
+        let request = request.clone();
+        let preparer = preparer.clone();
+        let cancellation_token = cancellation_token.clone();
+        let producer = producer.clone();
+        let future = async move {
+            if let Err(e) = produce_message(
+                message,
+                request,
+                preparer,
+                producer,
+                tx.clone(),
+                cancellation_token,
+            )
+            .await
+            {
+                let _ = tx
+                    .send(ProduceMessagesCommandInternalResponse::Error(e))
+                    .await;
+            };
         }
+        .instrument(info_span!("Producing message").or_current());
+
+        tokio::task::spawn(future);
     }
+    Ok(rx)
+}
+
+async fn produce_message(
+    message: ProduceMessage,
+    request: Arc<ProduceMessagesCommandInternal>,
+    preparer: Arc<RwLock<Option<ProtoDescriptorPreparer>>>,
+    producer: Arc<ProducerWrapper>,
+    tx: Sender<ProduceMessagesCommandInternalResponse>,
+    cancellation_token: CancellationToken,
+) -> Result<(), anyhow::Error> {
+    let key_bytes = to_bytes(
+        message.key,
+        request.key_format.as_ref().unwrap_or(&Format::String),
+        &preparer,
+    )
+    .await
+    .context("While converting key to bytes")?;
+
+    let body_bytes = to_bytes(
+        message.body,
+        request.body_format.as_ref().unwrap_or(&Format::String),
+        &preparer,
+    )
+    .await
+    .context("While converting body to bytes")?;
+
+    let mut headers = None;
+    if !message.headers.is_empty() {
+        let mut new_headers = OwnedHeaders::new_with_capacity(message.headers.len());
+
+        for (header_key, header_value) in &message.headers {
+            new_headers = new_headers.insert(Header {
+                key: header_key.as_str(),
+                value: Some(header_value.as_bytes()),
+            })
+        }
+
+        headers = Some(new_headers);
+    };
+    let record = FutureRecord {
+        topic: &request.topic,
+        partition: message.partition,
+        timestamp: None,
+        key: key_bytes.as_ref(),
+        payload: body_bytes.as_ref(),
+        headers,
+    };
+
+    let send_result = select! {
+        send_result = producer.send(record, Timeout::Never) => {
+            Some(send_result)
+        }
+        _ = cancellation_token.cancelled() => {
+            info!("Producing to topic {} was cancelled", request.topic);
+            None
+        }
+    };
+
+    let Some(result) = send_result else {
+        return Ok(());
+    };
+
+    let message = match result {
+        Ok((partition, offset)) => {
+            ProduceMessagesCommandInternalResponse::ProducedMessageInfo(ProducedMessageInfo {
+                offset,
+                partition,
+            })
+        }
+        Err((kafka_error, _message)) => {
+            error!("Produce error {:?}", kafka_error);
+            ProduceMessagesCommandInternalResponse::Error(anyhow!("{:?}", kafka_error))
+        }
+    };
+
+    let _ = tx.send(message).await;
+
     Ok(())
 }
 
