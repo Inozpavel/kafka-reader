@@ -77,7 +77,7 @@ impl proto::KafkaService for KafkaService {
         let proto_produce_request = request.into_inner();
 
         debug!("New request: {:?}", proto_produce_request);
-        
+
         let command = proto_produce_messages_to_internal(proto_produce_request)
             .map_err(ApplicationError::InvalidArgument)?;
 
