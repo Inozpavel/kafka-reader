@@ -10,23 +10,25 @@ use kafka_reader_api::startup::run_until_stopped;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, Layer};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let log_level = std::env::var("RUST_LOG").unwrap_or(
-        "info,kafka_reader_api=debug,kafka_reader=debug,proto_json_converter=debug,prost_build=trace,protobuf_parse=trace"
-            .to_owned(),
-    );
+    let log_level = std::env::var("RUST_LOG").unwrap_or("info".to_owned());
 
     println!("Log level: {}", log_level);
+
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .parse_lossy(log_level);
+
     tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_filter(filter))
         .with(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .parse_lossy(log_level),
+            console_subscriber::ConsoleLayer::builder()
+                .with_default_env()
+                .spawn(),
         )
-        .with(tracing_subscriber::fmt::layer())
         .init();
 
     let config = AppConfig::build().context("While building app config")?;

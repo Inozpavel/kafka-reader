@@ -1,0 +1,7 @@
+[build]
+rustflags = ["--cfg", "tokio_unstable"]
+
+[env]
+RUST_LOG = "info,kafka_reader_api=debug,kafka_reader=debug,proto_json_converter=debug,prost_build=trace,protobuf_parse=trace"
+TOKIO_CONSOLE_BIND = "0.0.0.0:6669"
+
