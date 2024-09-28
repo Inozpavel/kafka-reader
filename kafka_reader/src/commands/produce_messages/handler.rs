@@ -87,19 +87,20 @@ async fn produce_message(
     .await
     .context("While converting body to bytes")?;
 
-    let mut headers = None;
-    if !message.headers.is_empty() {
-        let mut new_headers = OwnedHeaders::new_with_capacity(message.headers.len());
-
-        for (header_key, header_value) in &message.headers {
-            new_headers = new_headers.insert(Header {
-                key: header_key.as_str(),
-                value: Some(header_value.as_bytes()),
-            })
-        }
-
-        headers = Some(new_headers);
+    let headers = if message.headers.is_empty() {
+        None
+    } else {
+        Some(message.headers.iter().fold(
+            OwnedHeaders::new_with_capacity(message.headers.len()),
+            |acc, (key, value)| {
+                acc.insert(Header {
+                    key: key.as_str(),
+                    value: Some(value.as_str()),
+                })
+            },
+        ))
     };
+
     let record = FutureRecord {
         topic: &request.topic,
         partition: message.partition,
