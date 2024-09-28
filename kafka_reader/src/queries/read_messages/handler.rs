@@ -22,7 +22,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, info_span, trace, Instrument};
+use tracing::{debug, error, info_span, trace, warn, Instrument};
 use uuid::Uuid;
 
 type ChannelItem = ReadMessagesQueryInternalResponse;
@@ -151,7 +151,7 @@ async fn consume_topic(
                 msg
             }
             _ = cancellation_token.cancelled() => {
-                info!("Consuming was cancelled");
+                warn!("Consuming was cancelled");
                 break
             }
         };

@@ -367,8 +367,8 @@ pub fn produce_message_result_to_response(
         }
         ProduceMessagesCommandInternalResponse::ProducedMessageInfo(info) => {
             produce_messages_command_response::Response::DeliveryResult(DeliveryResultDto {
-                partition: info.partition,
-                offset: info.offset,
+                partition: *info.partition(),
+                offset: info.offset().unwrap_or(-1),
             })
         }
     };
