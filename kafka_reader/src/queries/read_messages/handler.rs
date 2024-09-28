@@ -11,15 +11,16 @@ use base64::Engine;
 use bytes::BytesMut;
 use proto_json_converter::{proto_bytes_to_json_string, ProtoDescriptorPreparer};
 use rdkafka::consumer::Consumer;
-use rdkafka::message::BorrowedMessage;
+use rdkafka::message::{BorrowedMessage, Headers};
 use rdkafka::Message;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
-use tokio::time::{sleep, Instant};
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, info_span, trace, Instrument};
 use uuid::Uuid;
@@ -97,6 +98,7 @@ pub async fn run_read_messages_to_channel(
             returned_message_count: 0,
             read_message_count: 0,
         };
+
         loop {
             select! {
                 _ = sleep(Duration::from_millis(500)) => {
@@ -136,9 +138,7 @@ async fn consume_topic(
         .subscribe(&[&topic])
         .context("While subscribing to topic")
     {
-        let _ = tx
-            .send(ChannelItem::ConsumeError(ConsumeError { error }))
-            .await;
+        let _ = tx.send(ChannelItem::Error(ConsumeError { error })).await;
         return;
     }
 
@@ -146,7 +146,6 @@ async fn consume_topic(
         let cancellation_token = cancellation_token.clone();
         let holder = holder.clone();
 
-        let start = Instant::now();
         let message_result = select! {
             msg = consumer_wrapper.recv() => {
                 msg
@@ -157,35 +156,38 @@ async fn consume_topic(
             }
         };
 
-        let elapsed = start.elapsed();
+        let Ok(message) = message_result else {
+            let error = message_result.unwrap_err();
+            error!(
+                "Error while reading message from kafka consumer: {:?}",
+                error
+            );
+            let _ = tx
+                .send(ChannelItem::Error(ConsumeError {
+                    error: error.into(),
+                }))
+                .await;
 
-        trace!("Consume duration: {:?}", elapsed);
-
-        if message_result.is_ok() {
-            counters
-                .read_messages_counter
-                .fetch_add(1, Ordering::Relaxed);
+            return;
         };
-        let converted_message = match message_result {
-            Ok(message) => convert_message(
-                message,
-                query.key_format.as_ref(),
-                query.body_format.as_ref(),
-                holder,
-            ),
-            Err(error) => {
-                error!(
-                    "Error while reading message from kafka consumer: {:?}",
-                    error
-                );
-                let _ = tx
-                    .send(ChannelItem::ConsumeError(ConsumeError {
-                        error: error.into(),
-                    }))
-                    .await;
-                return;
-            }
-        }
+
+        trace!(
+            "New message. Topic: '{}', partition: {}, offset: {}",
+            message.topic(),
+            message.partition(),
+            message.offset(),
+        );
+
+        counters
+            .read_messages_counter
+            .fetch_add(1, Ordering::Relaxed);
+
+        let converted_message = convert_message(
+            message,
+            query.key_format.as_ref(),
+            query.body_format.as_ref(),
+            holder,
+        )
         .await;
 
         let consumer_wrapper = consumer_wrapper.clone();
@@ -231,13 +233,8 @@ async fn convert_message<'a>(
 ) -> KafkaMessage {
     let milliseconds = message.timestamp().to_millis().unwrap_or(0).unsigned_abs();
     let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::from_millis(milliseconds);
-
     let partition_offset = PartitionOffset::new(message.partition(), message.offset());
-    trace!(
-        "New message. Topic: '{}', {:?}. ",
-        message.topic(),
-        partition_offset
-    );
+
     let key_result = message.key_view::<[u8]>();
     let key = message_part_to_string("key", key_result, key_format, &holder)
         .await
@@ -245,20 +242,33 @@ async fn convert_message<'a>(
             error: e,
             partition_offset,
         });
-    let payload_result = message.payload_view::<[u8]>();
-    let body = message_part_to_string("body", payload_result, body_format, &holder)
+
+    let body_result = message.payload_view::<[u8]>();
+    let body = message_part_to_string("body", body_result, body_format, &holder)
         .await
         .map_err(|e| ConvertError {
             error: e,
             partition_offset,
         });
 
+    let headers = message.headers().map(|h| {
+        h.iter()
+            .map(|header| {
+                (
+                    header.key.to_owned(),
+                    header
+                        .value
+                        .map_or_else(|| "".to_owned(), |v| String::from_utf8_lossy(v).to_string()),
+                )
+            })
+            .collect::<HashMap<_, _>>()
+    });
     KafkaMessage {
         partition_offset,
         timestamp,
         key,
         body,
-        headers: None,
+        headers,
     }
 }
 

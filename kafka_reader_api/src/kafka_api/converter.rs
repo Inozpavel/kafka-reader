@@ -305,7 +305,7 @@ pub fn read_result_to_proto_response(
                 returned_count: message_counters.returned_message_count,
             })
         }
-        ReadMessagesQueryInternalResponse::ConsumeError(error) => {
+        ReadMessagesQueryInternalResponse::Error(error) => {
             read_messages_query_response::Response::Error(ErrorDto {
                 message: format!("{:?}", error.error),
             })
