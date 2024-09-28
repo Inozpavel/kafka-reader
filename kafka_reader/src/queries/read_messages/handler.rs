@@ -207,12 +207,14 @@ async fn consume_topic(
             )
             .await;
 
+            let Some(offset) = *partition_offset.offset() else {
+                return;
+            };
+
             if handled {
-                if let Err(e) = consumer_wrapper.store_offset(
-                    &topic,
-                    *partition_offset.partition(),
-                    *partition_offset.offset(),
-                ) {
+                if let Err(e) =
+                    consumer_wrapper.store_offset(&topic, *partition_offset.partition(), offset)
+                {
                     error!(
                         "Error while storing offset to consumer. Topic {}, metadata: {:?}. {:?}",
                         topic, partition_offset, e
@@ -233,7 +235,7 @@ async fn convert_message<'a>(
 ) -> KafkaMessage {
     let milliseconds = message.timestamp().to_millis().unwrap_or(0).unsigned_abs();
     let timestamp = chrono::DateTime::UNIX_EPOCH + Duration::from_millis(milliseconds);
-    let partition_offset = PartitionOffset::new(message.partition(), message.offset());
+    let partition_offset = PartitionOffset::new(message.partition(), Some(message.offset()));
 
     let key_result = message.key_view::<[u8]>();
     let key = message_part_to_string("key", key_result, key_format, &holder)

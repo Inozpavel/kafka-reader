@@ -7,7 +7,6 @@ use crate::queries::get_topic_lags::response::{
 use crate::queries::get_topic_partitions_with_offsets::MinMaxOffset;
 use anyhow::Context;
 use rdkafka::consumer::Consumer;
-use rdkafka::{Offset, TopicPartitionList};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -48,11 +47,6 @@ async fn write_lags_to_channel(
     let consumer_copy = consumer.clone();
     let groups_handle = tokio::task::spawn_blocking(move || get_consumer_groups(&consumer_copy));
 
-    let consumer_copy = consumer.clone();
-    let topic_copy = topic.clone();
-    let topic_partitions_handle =
-        tokio::task::spawn_blocking(move || get_topic_partitions(&consumer_copy, &topic_copy));
-
     let groups = select! {
         groups = groups_handle => {
             groups.context("While joining handle with groups")??
@@ -62,30 +56,24 @@ async fn write_lags_to_channel(
         }
     };
 
-    let topic_partitions = select! {
-        topic_partitions = topic_partitions_handle => {
-            topic_partitions.context("While joining handle with topic partitions")??
-        }
-        _ = cancellation_token.cancelled() => {
-            return Ok(())
-        }
-    };
+    // let topic_partitions = select! {
+    //     topic_partitions = topic_partitions_handle => {
+    //         topic_partitions.context("While joining handle with topic partitions")??
+    //     }
+    //     _ = cancellation_token.cancelled() => {
+    //         return Ok(())
+    //     }
+    // };
 
-    let consumer_copy = consumer.clone();
     let topic_copy = topic.clone();
 
-    let topic_partitions_clone = topic_partitions.clone();
-    let watermarks = tokio::task::spawn_blocking(move || {
-        get_watermarks(&consumer_copy, &topic_copy, &topic_partitions_clone)
-    })
-    .await
-    .context("While joining handle with watermarks")??;
+    let partitions_offsets =
+        consumer.get_all_partitions_watermarks(&topic_copy, Some(Duration::from_secs(5)))?;
 
-    let watermarks = Arc::new(watermarks);
+    let watermarks = Arc::new(partitions_offsets);
 
     let kafka_settings = Arc::new(query.connection_settings);
     for group in groups {
-        let topic_partitions = topic_partitions.clone();
         let kafka_settings = kafka_settings.clone();
         let topic = topic.clone();
         let tx = tx.clone();
@@ -93,7 +81,7 @@ async fn write_lags_to_channel(
 
         tokio::task::spawn(async move {
             let Ok(lags_result) = tokio::task::spawn_blocking(move || {
-                get_group_topic_offsets(&kafka_settings, watermarks, topic_partitions, group, topic)
+                get_group_topic_offsets(&kafka_settings, watermarks, group, topic)
             })
             .await
             .inspect_err(|e| error!("{:?}", e)) else {
@@ -127,90 +115,37 @@ fn get_consumer_groups(consumer: &ConsumerWrapper) -> Result<Vec<GroupInfo>, any
     Ok(groups)
 }
 
-fn get_watermarks(
-    consumer: &ConsumerWrapper,
-    topic: &str,
-    topic_partitions: &TopicPartitionList,
-) -> Result<HashMap<i32, MinMaxOffset>, anyhow::Error> {
-    let mut watermarks = HashMap::new();
-    for partition in topic_partitions.elements() {
-        let (min, max) = consumer
-            .fetch_watermarks(topic, partition.partition(), Duration::from_secs(1))
-            .context("While fetching watermarks")?;
-
-        watermarks.insert(
-            partition.partition(),
-            MinMaxOffset {
-                max_offset: max,
-                min_offset: min,
-            },
-        );
-    }
-
-    Ok(watermarks)
-}
-
-fn get_topic_partitions(
-    consumer: &ConsumerWrapper,
-    topic: &str,
-) -> Result<TopicPartitionList, anyhow::Error> {
-    let metadata = consumer
-        .fetch_metadata(Some(topic), Duration::from_secs(1))
-        .context("While fetching metadata")?;
-
-    let topic_metadata = metadata
-        .topics()
-        .iter()
-        .find(|t| t.name() == topic)
-        .context("Topic not found in metadata")?;
-
-    let mut topic_partition_list = TopicPartitionList::new();
-    for partition in topic_metadata.partitions() {
-        topic_partition_list
-            .add_partition_offset(topic, partition.id(), Offset::Invalid)
-            .context("While adding partition")?;
-    }
-
-    Ok(topic_partition_list)
-}
-
 fn get_group_topic_offsets(
     kafka_connection_settings: &ConnectionSettings,
     partitions_watermarks: Arc<HashMap<i32, MinMaxOffset>>,
-    topic_partitions: TopicPartitionList,
     group: GroupInfo,
     topic: Arc<String>,
 ) -> Result<Option<GroupTopicLags>, anyhow::Error> {
     let consumer =
         ConsumerWrapper::create_for_non_consuming(kafka_connection_settings, Some(&group.id))?;
-    let committed_list = consumer
-        .committed_offsets(topic_partitions, Duration::from_secs(15))
-        .context("While fetching committed offsets")?;
-    let committed_list_elements = committed_list.elements_for_topic(&topic);
 
-    if committed_list_elements.is_empty()
-        || committed_list_elements
-            .iter()
-            .all(|x| matches!(x.offset(), Offset::Invalid))
-    {
+    let partitions_count = consumer
+        .get_topic_partitions_count(&topic, Some(Duration::from_secs(5)))
+        .context("While fetching partitions_count")?;
+    let partition_offsets = consumer
+        .get_topic_offsets(&topic, partitions_count, Some(Duration::from_secs(5)))
+        .context("While fetching group lag")?;
+
+    if partition_offsets.is_empty() || partition_offsets.iter().all(|x| x.offset().is_none()) {
         return Ok(None);
     }
-    let mut lags = Vec::with_capacity(committed_list.elements().len());
-    for x in committed_list_elements {
-        let offset_value = x
-            .offset()
-            .to_raw()
-            .and_then(|x| if x >= 0 { Some(x) } else { None });
 
-        let watermarks = partitions_watermarks.get(&x.partition());
-        let lag = match (watermarks, offset_value) {
+    let mut lags = vec![];
+
+    for partition_offset in partition_offsets {
+        let watermarks = partitions_watermarks.get(partition_offset.partition());
+        let lag = match (watermarks, partition_offset.offset()) {
             (Some(min_max_offset), None) => min_max_offset.messages_count(),
             (Some(min_max_offset), Some(v)) => min_max_offset.max_offset - v,
             (None, _) => 0,
         };
         let partition_with_lag = PartitionOffsetWithLag {
-            partition: x.partition(),
-            offset: offset_value,
+            partition_offset,
             lag,
         };
         lags.push(partition_with_lag)
@@ -221,6 +156,7 @@ fn get_group_topic_offsets(
         lags,
         topic,
     };
+
     debug!("Got group lags: {:?}", group_topic_lags);
 
     Ok(Some(group_topic_lags))

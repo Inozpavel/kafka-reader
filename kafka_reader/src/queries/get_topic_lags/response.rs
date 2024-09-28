@@ -1,3 +1,4 @@
+use crate::consumer::PartitionOffset;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -21,8 +22,7 @@ pub struct GroupTopicLags {
 
 #[derive(Debug)]
 pub struct PartitionOffsetWithLag {
-    pub partition: i32,
-    pub offset: Option<i64>,
+    pub partition_offset: PartitionOffset,
     pub lag: i64,
 }
 

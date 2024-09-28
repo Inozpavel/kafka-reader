@@ -29,7 +29,6 @@ async fn main() -> Result<(), anyhow::Error> {
                 .spawn(),
         )
         .with(tracing_subscriber::fmt::layer().with_filter(filter))
-        
         .init();
 
     let config = AppConfig::build().context("While building app config")?;

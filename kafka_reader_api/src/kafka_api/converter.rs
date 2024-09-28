@@ -288,7 +288,7 @@ pub fn read_result_to_proto_response(
         ReadMessagesQueryInternalResponse::KafkaMessage(kafka_message) => {
             read_messages_query_response::Response::KafkaMessage(KafkaMessageDto {
                 partition: *kafka_message.partition_offset.partition(),
-                offset: *kafka_message.partition_offset.offset(),
+                offset: kafka_message.partition_offset.offset().unwrap_or(-1),
                 timestamp: Some(kafka_message.timestamp.to_proto_timestamp()),
                 key: kafka_message
                     .key
@@ -341,7 +341,7 @@ fn group_lags_to_response(model: GroupTopicLags) -> GroupLagsDto {
         .into_iter()
         .map(|x| GroupTopicPartitionLagDto {
             lag: x.lag,
-            partition: x.partition,
+            partition: *x.partition_offset.partition(),
         })
         .collect();
 
