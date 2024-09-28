@@ -23,12 +23,13 @@ async fn main() -> Result<(), anyhow::Error> {
         .parse_lossy(log_level);
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_filter(filter))
         .with(
             console_subscriber::ConsoleLayer::builder()
                 .with_default_env()
                 .spawn(),
         )
+        .with(tracing_subscriber::fmt::layer().with_filter(filter))
+        
         .init();
 
     let config = AppConfig::build().context("While building app config")?;
