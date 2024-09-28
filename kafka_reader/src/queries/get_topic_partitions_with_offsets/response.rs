@@ -1,10 +1,7 @@
-pub struct GetTopicPartitionsWithOffsetsQueryResponseInternal {
-    pub partitions: Vec<TopicPartitionWithOffsetsInternal>,
-}
+use std::collections::HashMap;
 
-pub struct TopicPartitionWithOffsetsInternal {
-    pub id: i32,
-    pub offsets: MinMaxOffset,
+pub struct GetTopicPartitionsWithOffsetsQueryResponseInternal {
+    pub partitions_offsets: HashMap<i32, MinMaxOffset>,
 }
 
 pub struct MinMaxOffset {

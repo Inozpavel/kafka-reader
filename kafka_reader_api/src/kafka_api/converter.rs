@@ -405,13 +405,13 @@ pub fn topic_partition_offsets_to_proto_response(
     model: GetTopicPartitionsWithOffsetsQueryResponseInternal,
 ) -> GetTopicPartitionsWithOffsetsQueryResponse {
     let partitions = model
-        .partitions
-        .into_par_iter()
-        .map(|x| PartitionDataWatermarksDto {
-            id: x.id,
-            min_offset: x.offsets.min_offset,
-            max_offset: x.offsets.max_offset,
-            messages_count: x.offsets.messages_count(),
+        .partitions_offsets
+        .into_iter()
+        .map(|(partition, offsets)| PartitionDataWatermarksDto {
+            id: partition,
+            min_offset: offsets.min_offset,
+            max_offset: offsets.max_offset,
+            messages_count: offsets.messages_count(),
         })
         .collect();
 

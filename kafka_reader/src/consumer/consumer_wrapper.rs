@@ -1,8 +1,10 @@
 use crate::connection_settings::ConnectionSettings;
 use crate::consumer::AutoOffsetReset;
+use crate::queries::get_topic_partitions_with_offsets::MinMaxOffset;
 use anyhow::Context;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::ClientConfig;
+use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
@@ -62,7 +64,7 @@ impl ConsumerWrapper {
         &self,
         topic: &str,
         timeout: Option<Duration>,
-    ) -> Result<usize, anyhow::Error> {
+    ) -> Result<i32, anyhow::Error> {
         let metadata = self
             .consumer
             .fetch_metadata(Some(topic), timeout)
@@ -74,7 +76,44 @@ impl ConsumerWrapper {
             .find(|x| x.name() == topic)
             .context("Requested topic wasn't found")?;
 
-        Ok(topic_metadata.partitions().len())
+        Ok(topic_metadata.partitions().len() as i32)
+    }
+
+    pub fn get_partition_watermarks(
+        &self,
+        topic: &str,
+        partition: i32,
+        timeout: Option<Duration>,
+    ) -> Result<MinMaxOffset, anyhow::Error> {
+        let (min, max) = self
+            .consumer
+            .fetch_watermarks(topic, partition, timeout)
+            .context("While fetching watermarks")?;
+
+        Ok(MinMaxOffset {
+            min_offset: min,
+            max_offset: max,
+        })
+    }
+
+    pub fn get_all_partitions_watermarks(
+        &self,
+        topic: &str,
+        timeout: Option<Duration>,
+    ) -> Result<HashMap<i32, MinMaxOffset>, anyhow::Error> {
+        let partitions_counts = self
+            .get_topic_partitions_count(topic, timeout)
+            .context("While fetching partitions count")?;
+
+        (0..partitions_counts)
+            .map(|partition| {
+                let watermarks = self
+                    .get_partition_watermarks(topic, partition, timeout)
+                    .context("While fetching watermarks for topic")?;
+
+                Result::<_, anyhow::Error>::Ok((partition, watermarks))
+            })
+            .collect()
     }
 }
 
