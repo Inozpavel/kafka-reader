@@ -8,7 +8,6 @@ use crate::queries::get_topic_partitions_with_offsets::{
 use anyhow::{bail, Context};
 use rayon::prelude::*;
 use rdkafka::consumer::Consumer;
-use rdkafka::util::Timeout;
 use std::time::Duration;
 use tracing::trace;
 
@@ -27,7 +26,7 @@ fn build_response(
         .context("While creating consumer")?;
 
     let metadata = consumer
-        .fetch_metadata(Some(&query.topic), Timeout::After(Duration::from_secs(5)))
+        .fetch_metadata(Some(&query.topic), Duration::from_secs(5))
         .with_context(|| format!("While fetching topic '{}' metadata", query.topic))?;
 
     trace!(
@@ -71,7 +70,7 @@ fn fetch_topic_partition_offset(
     partition: i32,
 ) -> Result<TopicPartitionWithOffsetsInternal, anyhow::Error> {
     let (low, high) = consumer
-        .fetch_watermarks(topic, partition, Timeout::After(Duration::from_secs(5)))
+        .fetch_watermarks(topic, partition, Duration::from_secs(5))
         .with_context(|| {
             format!(
                 "While fetching watermarks for topic {} and partition {}",

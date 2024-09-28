@@ -11,8 +11,8 @@ use base64::Engine;
 use proto_json_converter::{json_string_to_proto_bytes, ProtoDescriptorPreparer};
 use rdkafka::message::{Header, OwnedHeaders, ToBytes};
 use rdkafka::producer::FutureRecord;
-use rdkafka::util::Timeout;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
@@ -111,7 +111,7 @@ async fn produce_message(
     };
 
     let send_result = select! {
-        send_result = producer.send(record, Timeout::Never) => {
+        send_result = producer.send(record, Duration::from_secs(5)) => {
             Some(send_result)
         }
         _ = cancellation_token.cancelled() => {

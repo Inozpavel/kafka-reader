@@ -7,7 +7,6 @@ use crate::queries::get_topic_lags::response::{
 use crate::queries::get_topic_partitions_with_offsets::MinMaxOffset;
 use anyhow::Context;
 use rdkafka::consumer::Consumer;
-use rdkafka::util::Timeout;
 use rdkafka::{Offset, TopicPartitionList};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -113,7 +112,7 @@ async fn write_lags_to_channel(
 }
 fn get_consumer_groups(consumer: &ConsumerWrapper) -> Result<Vec<GroupInfo>, anyhow::Error> {
     let groups_list = consumer
-        .fetch_group_list(None, Timeout::After(Duration::from_secs(5)))
+        .fetch_group_list(None, Duration::from_secs(5))
         .context("While fetching groups")?;
 
     let groups = groups_list
