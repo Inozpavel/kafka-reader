@@ -24,22 +24,27 @@ impl ProducerWrapper {
         Ok(Self { producer })
     }
 
-    pub async fn produce_message(
+    pub async fn produce_message<'a, T>(
         &self,
         topic: &str,
         partition: Option<i32>,
         key: Option<&[u8]>,
         body: Option<&[u8]>,
-        headers: Option<impl ExactSizeIterator<Item = (&str, &[u8])>>,
+        headers: Option<T>,
         timeout: Option<Duration>,
-    ) -> Result<PartitionOffset, anyhow::Error> {
+    ) -> Result<PartitionOffset, anyhow::Error>
+    where
+        T: IntoIterator<Item = (&'a str, &'a [u8])>,
+        T::IntoIter: ExactSizeIterator<Item = T::Item>,
+    {
         let kafka_headers = headers.and_then(|headers_map| {
-            let headers_len = headers_map.len();
-            if headers_len == 0 {
+            let iter = headers_map.into_iter();
+            let items_count = iter.len();
+            if items_count == 0 {
                 None
             } else {
-                Some(headers_map.into_iter().fold(
-                    OwnedHeaders::new_with_capacity(headers_len),
+                Some(iter.fold(
+                    OwnedHeaders::new_with_capacity(items_count),
                     |acc, (key, value)| {
                         acc.insert(Header {
                             key,
