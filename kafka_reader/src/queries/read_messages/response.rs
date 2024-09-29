@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub enum ReadMessagesQueryInternalResponse {
     KafkaMessage(KafkaMessage),
     MessagesCounters(MessagesCounters),
-    ConsumeError(ConsumeError),
+    Error(ConsumeError),
 }
 
 #[derive(Debug)]

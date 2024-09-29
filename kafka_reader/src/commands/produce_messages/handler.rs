@@ -1,23 +1,19 @@
-use crate::commands::produce_messages::response::{
-    ProduceMessagesCommandInternalResponse, ProducedMessageInfo,
-};
+use crate::commands::produce_messages::response::ProduceMessagesCommandInternalResponse;
 use crate::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
 use crate::producer::ProducerWrapper;
 use crate::queries::read_messages::{Format, ProtobufDecodeWay};
 use crate::utils::create_holder;
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use proto_json_converter::{json_string_to_proto_bytes, ProtoDescriptorPreparer};
-use rdkafka::message::{Header, OwnedHeaders, ToBytes};
-use rdkafka::producer::FutureRecord;
-use rdkafka::util::Timeout;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, info_span, Instrument};
+use tracing::{info_span, warn, Instrument};
 
 pub async fn produce_messages_to_topic(
     mut request: ProduceMessagesCommandInternal,
@@ -87,53 +83,35 @@ async fn produce_message(
     .await
     .context("While converting body to bytes")?;
 
-    let mut headers = None;
-    if !message.headers.is_empty() {
-        let mut new_headers = OwnedHeaders::new_with_capacity(message.headers.len());
-
-        for (header_key, header_value) in &message.headers {
-            new_headers = new_headers.insert(Header {
-                key: header_key.as_str(),
-                value: Some(header_value.as_bytes()),
-            })
-        }
-
-        headers = Some(new_headers);
-    };
-    let record = FutureRecord {
-        topic: &request.topic,
-        partition: message.partition,
-        timestamp: None,
-        key: key_bytes.as_ref(),
-        payload: body_bytes.as_ref(),
-        headers,
-    };
+    let produce_future = producer.produce_message(
+        &request.topic,
+        message.partition,
+        key_bytes.as_deref(),
+        body_bytes.as_deref(),
+        Some(
+            message
+                .headers
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_bytes())),
+        ),
+        Some(Duration::from_secs(5)),
+    );
 
     let send_result = select! {
-        send_result = producer.send(record, Timeout::Never) => {
-            Some(send_result)
+        send_result = produce_future => {
+            send_result.context("While producing message")
         }
         _ = cancellation_token.cancelled() => {
-            info!("Producing to topic {} was cancelled", request.topic);
-            None
+            warn!("Producing to topic {} was cancelled", request.topic);
+            return Ok(());
         }
     };
 
-    let Some(result) = send_result else {
-        return Ok(());
-    };
-
-    let message = match result {
-        Ok((partition, offset)) => {
-            ProduceMessagesCommandInternalResponse::ProducedMessageInfo(ProducedMessageInfo {
-                offset,
-                partition,
-            })
+    let message = match send_result {
+        Ok(partition_offset) => {
+            ProduceMessagesCommandInternalResponse::ProducedMessageInfo(partition_offset)
         }
-        Err((kafka_error, _message)) => {
-            error!("Produce error {:?}", kafka_error);
-            ProduceMessagesCommandInternalResponse::Error(anyhow!("{:?}", kafka_error))
-        }
+        Err(e) => ProduceMessagesCommandInternalResponse::Error(e),
     };
 
     let _ = tx.send(message).await;
@@ -151,7 +129,7 @@ async fn to_bytes(
     };
 
     let bytes = match format {
-        Format::String => s.to_bytes().to_vec(),
+        Format::String => s.as_bytes().to_vec(),
         Format::Hex => vec![],
         Format::Base64 => BASE64_STANDARD
             .decode(s.as_bytes())

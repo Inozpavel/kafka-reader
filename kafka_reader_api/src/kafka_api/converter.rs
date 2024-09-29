@@ -288,7 +288,7 @@ pub fn read_result_to_proto_response(
         ReadMessagesQueryInternalResponse::KafkaMessage(kafka_message) => {
             read_messages_query_response::Response::KafkaMessage(KafkaMessageDto {
                 partition: *kafka_message.partition_offset.partition(),
-                offset: *kafka_message.partition_offset.offset(),
+                offset: kafka_message.partition_offset.offset().unwrap_or(-1),
                 timestamp: Some(kafka_message.timestamp.to_proto_timestamp()),
                 key: kafka_message
                     .key
@@ -305,7 +305,7 @@ pub fn read_result_to_proto_response(
                 returned_count: message_counters.returned_message_count,
             })
         }
-        ReadMessagesQueryInternalResponse::ConsumeError(error) => {
+        ReadMessagesQueryInternalResponse::Error(error) => {
             read_messages_query_response::Response::Error(ErrorDto {
                 message: format!("{:?}", error.error),
             })
@@ -341,7 +341,7 @@ fn group_lags_to_response(model: GroupTopicLags) -> GroupLagsDto {
         .into_iter()
         .map(|x| GroupTopicPartitionLagDto {
             lag: x.lag,
-            partition: x.partition,
+            partition: *x.partition_offset.partition(),
         })
         .collect();
 
@@ -367,8 +367,8 @@ pub fn produce_message_result_to_response(
         }
         ProduceMessagesCommandInternalResponse::ProducedMessageInfo(info) => {
             produce_messages_command_response::Response::DeliveryResult(DeliveryResultDto {
-                partition: info.partition,
-                offset: info.offset,
+                partition: *info.partition(),
+                offset: info.offset().unwrap_or(-1),
             })
         }
     };
@@ -405,13 +405,13 @@ pub fn topic_partition_offsets_to_proto_response(
     model: GetTopicPartitionsWithOffsetsQueryResponseInternal,
 ) -> GetTopicPartitionsWithOffsetsQueryResponse {
     let partitions = model
-        .partitions
-        .into_par_iter()
-        .map(|x| PartitionDataWatermarksDto {
-            id: x.id,
-            min_offset: x.offsets.min_offset,
-            max_offset: x.offsets.max_offset,
-            messages_count: x.offsets.messages_count(),
+        .partitions_offsets
+        .into_iter()
+        .map(|(partition, offsets)| PartitionDataWatermarksDto {
+            id: partition,
+            min_offset: offsets.min_offset,
+            max_offset: offsets.max_offset,
+            messages_count: offsets.messages_count(),
         })
         .collect();
 

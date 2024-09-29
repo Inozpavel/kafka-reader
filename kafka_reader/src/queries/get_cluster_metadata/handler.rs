@@ -5,7 +5,6 @@ use crate::queries::get_cluster_metadata::response::{
 };
 use anyhow::Context;
 use rdkafka::consumer::Consumer;
-use rdkafka::util::Timeout;
 use std::time::Duration;
 
 pub async fn get_cluster_metadata(
@@ -16,7 +15,7 @@ pub async fn get_cluster_metadata(
             .context("While creating admin client")?;
 
         let metadata = client
-            .fetch_metadata(None, Timeout::After(Duration::from_secs(5)))
+            .fetch_metadata(None, Duration::from_secs(5))
             .context("While fetching metadata")?;
 
         let brokers = metadata
