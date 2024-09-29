@@ -56,15 +56,6 @@ async fn write_lags_to_channel(
         }
     };
 
-    // let topic_partitions = select! {
-    //     topic_partitions = topic_partitions_handle => {
-    //         topic_partitions.context("While joining handle with topic partitions")??
-    //     }
-    //     _ = cancellation_token.cancelled() => {
-    //         return Ok(())
-    //     }
-    // };
-
     let topic_copy = topic.clone();
 
     let partitions_offsets =

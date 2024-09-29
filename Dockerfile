@@ -1,4 +1,4 @@
-FROM rust as base
+FROM rust AS base
 
 RUN apt update && yes | apt install protobuf-compiler cmake
 
@@ -8,7 +8,7 @@ COPY . .
 
 RUN cargo build --release
 
-FROM debian:bookworm-slim as release
+FROM debian:bookworm-slim AS release
 
 WORKDIR /app
 
