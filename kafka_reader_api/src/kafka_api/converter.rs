@@ -2,7 +2,17 @@ use crate::kafka_api::proto::get_cluster_metadata::{
     GetClusterMetadataQuery, GetClusterMetadataQueryResponse, KafkaBrokerMetadataDto,
     KafkaTopicMetadataDto,
 };
+use crate::kafka_api::proto::get_topic_lags::{
+    get_topic_lags_query_response, GetTopicLagsQuery, GetTopicLagsQueryResponse, GroupLagsDto,
+    GroupTopicLagDto, GroupTopicPartitionLagDto,
+};
+use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
+    PartitionDataWatermarksDto,
+};
 use crate::kafka_api::proto::message_format_dto::proto_format_dto;
+use crate::kafka_api::proto::message_format_dto::proto_format_dto::bytes_or_base64_data_dto::Data;
+use crate::kafka_api::proto::message_format_dto::proto_format_dto::BytesOrBase64DataDto;
 use crate::kafka_api::proto::produce_messages::{
     produce_messages_command_response, DeliveryResultDto, ProduceMessageDto,
     ProduceMessagesCommand, ProduceMessagesCommandResponse,
@@ -19,15 +29,8 @@ use crate::kafka_api::proto::{
 };
 use crate::time_util::{DateTimeConvert, ProtoTimestampConvert};
 use anyhow::{anyhow, bail, Context};
-
-use crate::kafka_api::proto::get_topic_lags::{
-    get_topic_lags_query_response, GetTopicLagsQuery, GetTopicLagsQueryResponse, GroupLagsDto,
-    GroupTopicLagDto, GroupTopicPartitionLagDto,
-};
-use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
-    GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
-    PartitionDataWatermarksDto,
-};
+use base64::prelude::{BASE64_STANDARD, BASE64_STANDARD_NO_PAD, BASE64_URL_SAFE};
+use base64::Engine;
 use kafka_reader::commands::produce_messages::{
     ProduceMessage, ProduceMessagesCommandInternal, ProduceMessagesCommandInternalResponse,
 };
@@ -43,9 +46,9 @@ use kafka_reader::queries::get_topic_partitions_with_offsets::{
     GetTopicPartitionsWithOffsetsQueryInternal, GetTopicPartitionsWithOffsetsQueryResponseInternal,
 };
 use kafka_reader::queries::read_messages::{
-    FilterCondition, FilterKind, Format, MessageTime, ProtobufDecodeWay, ReadLimit,
-    ReadMessagesQueryInternal, ReadMessagesQueryInternalResponse, SingleProtoFile, StartFrom,
-    ValueFilter,
+    FilterCondition, FilterKind, Format, MessageTime, ProtoTarArchive, ProtobufDecodeWay,
+    ReadLimit, ReadMessagesQueryInternal, ReadMessagesQueryInternalResponse, SingleProtoFile,
+    StartFrom, ValueFilter,
 };
 use rayon::prelude::*;
 use regex::Regex;
@@ -219,24 +222,40 @@ fn proto_format_to_format(
     let Some(proto_format_variant) = proto_format.format else {
         return Ok(None);
     };
-    let format = match proto_format_variant {
-        message_format_dto::Format::StringFormat(_) => Format::String,
-        message_format_dto::Format::HexFormat(_) => Format::Hex,
-        message_format_dto::Format::Base64Format(_) => Format::Base64,
-        message_format_dto::Format::ProtoFormat(protobuf_data) => {
-            match protobuf_data
-                .decode_way
-                .ok_or_else(|| anyhow!("Protobuf format can't be none"))?
-            {
-                proto_format_dto::DecodeWay::RawProtoFile(single_file) => {
-                    Format::Protobuf(ProtobufDecodeWay::SingleProtoFile(SingleProtoFile {
-                        file: single_file.file,
-                        message_type_name: single_file.message_type_name,
-                    }))
+    let format =
+        match proto_format_variant {
+            message_format_dto::Format::StringFormat(_) => Format::String,
+            message_format_dto::Format::HexFormat(_) => Format::Hex,
+            message_format_dto::Format::Base64Format(_) => Format::Base64,
+            message_format_dto::Format::ProtoFormat(protobuf_data) => {
+                match protobuf_data
+                    .decode_way
+                    .ok_or_else(|| anyhow!("Protobuf format can't be none"))?
+                {
+                    proto_format_dto::DecodeWay::RawProtoFile(single_file) => {
+                        Format::Protobuf(ProtobufDecodeWay::SingleProtoFile(SingleProtoFile {
+                            file: single_file.file,
+                            message_type_name: single_file.message_type_name,
+                        }))
+                    }
+                    proto_format_dto::DecodeWay::TarArchive(tar_archive) => {
+                        Format::Protobuf(ProtobufDecodeWay::TarArchive(ProtoTarArchive {
+                            target_file_path: tar_archive.target_file_path,
+                            archive_bytes: match tar_archive.data.and_then(|x| x.data) {
+                                None => bail!("Archive data can't be null"),
+                                Some(data) => match data {
+                                    Data::DataBytes(bytes) => bytes,
+                                    Data::DataBase64(base64) => BASE64_STANDARD
+                                        .decode(base64)
+                                        .context("While decoding base 64 archive bytes")?,
+                                },
+                            },
+                            message_type_name: tar_archive.message_type_name,
+                        }))
+                    }
                 }
             }
-        }
-    };
+        };
 
     Ok(Some(format))
 }

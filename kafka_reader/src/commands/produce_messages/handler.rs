@@ -144,6 +144,7 @@ async fn to_bytes(
                 json_string_to_proto_bytes(&s, &single_file.message_type_name, preparer)
                     .context("While converting json to proto bytes")?
             }
+            ProtobufDecodeWay::TarArchive(tar_archive) => todo!(),
         },
     };
 
