@@ -4,7 +4,7 @@ use crate::queries::read_messages::{
     MessagesCounters, ProtobufDecodeWay, ReadLimit, ReadMessagesQueryInternal,
     ReadMessagesQueryInternalResponse, StartFrom, ValueFilter,
 };
-use crate::utils::create_holder;
+use crate::utils::{create_holder, create_holder_from_tar};
 use anyhow::{anyhow, bail, Context};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -432,6 +432,18 @@ async fn bytes_to_string(
                     preparer,
                 )
                 .context("While converting proto bytes to json")?;
+                Some(json)
+            }
+            ProtobufDecodeWay::TarArchive(tar_archive) => {
+                create_holder_from_tar(holder, tar_archive)
+                    .await
+                    .context("While creating descriptor holder")?;
+
+                let read_guard = holder.read().await;
+                let preparer = read_guard.as_ref().expect("Poisoned rwlock");
+                let json =
+                    proto_bytes_to_json_string(bytes, &tar_archive.message_type_name, preparer)
+                        .context("While converting proto bytes to json")?;
                 Some(json)
             }
         },

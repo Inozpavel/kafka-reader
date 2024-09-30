@@ -2,7 +2,7 @@ use crate::commands::produce_messages::response::ProduceMessagesCommandInternalR
 use crate::commands::produce_messages::{ProduceMessage, ProduceMessagesCommandInternal};
 use crate::producer::ProducerWrapper;
 use crate::queries::read_messages::{Format, ProtobufDecodeWay};
-use crate::utils::create_holder;
+use crate::utils::{create_holder, create_holder_from_tar};
 use anyhow::Context;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -142,6 +142,15 @@ async fn to_bytes(
                 let read_guard = preparer.read().await;
                 let preparer = read_guard.as_ref().expect("Poisoned rwlock");
                 json_string_to_proto_bytes(&s, &single_file.message_type_name, preparer)
+                    .context("While converting json to proto bytes")?
+            }
+            ProtobufDecodeWay::TarArchive(tar_archive) => {
+                create_holder_from_tar(preparer, tar_archive)
+                    .await
+                    .context("While creating ProtoDescriptorPreparer")?;
+                let read_guard = preparer.read().await;
+                let preparer = read_guard.as_ref().expect("Poisoned rwlock");
+                json_string_to_proto_bytes(&s, &tar_archive.message_type_name, preparer)
                     .context("While converting json to proto bytes")?
             }
         },

@@ -1,23 +1,26 @@
-use crate::error::ApplicationError;
-use crate::kafka_api::converter::read_result_to_proto_response;
-use crate::kafka_api::proto::get_cluster_metadata::{
-    GetClusterMetadataQuery, GetClusterMetadataQueryResponse,
-};
-use crate::kafka_api::proto::get_topic_lags::{GetTopicLagsQuery, GetTopicLagsQueryResponse};
-use crate::kafka_api::proto::get_topic_partitions_with_offsets::{
-    GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
-};
-use crate::kafka_api::proto::produce_messages::{
-    ProduceMessagesCommand, ProduceMessagesCommandResponse,
-};
-use crate::kafka_api::proto::{ReadMessagesQuery, ReadMessagesQueryResponse};
-use crate::kafka_api::{
-    kafka_cluster_metadata_to_proto_response, produce_message_result_to_response, proto,
+use crate::api::converters::{
+    kafka_cluster_metadata_to_proto_response, produce_message_result_to_response,
     proto_get_cluster_metadata_to_internal, proto_get_lags_to_internal,
     proto_get_topic_partition_offsets_internal, proto_produce_messages_to_internal,
-    proto_read_messages_to_internal, topic_lag_result_to_proto_response,
-    topic_partition_offsets_to_proto_response,
+    proto_read_messages_to_internal, read_result_to_proto_response,
+    topic_lag_result_to_proto_response, topic_partition_offsets_to_proto_response,
 };
+use crate::api::kafka_service::proto::get_cluster_metadata::{
+    GetClusterMetadataQuery, GetClusterMetadataQueryResponse,
+};
+use crate::api::kafka_service::proto::get_topic_lags::{
+    GetTopicLagsQuery, GetTopicLagsQueryResponse,
+};
+use crate::api::kafka_service::proto::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
+};
+use crate::api::kafka_service::proto::produce_messages::{
+    ProduceMessagesCommand, ProduceMessagesCommandResponse,
+};
+use crate::api::kafka_service::proto::read_messages::{
+    ReadMessagesQuery, ReadMessagesQueryResponse,
+};
+use crate::error::ApplicationError;
 use crate::util::StreamDataExtension;
 use kafka_reader::commands::produce_messages::produce_messages_to_topic;
 use kafka_reader::queries::get_cluster_metadata::get_cluster_metadata;
@@ -30,11 +33,20 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
 
+pub mod proto {
+    pub use read_messages::*;
+
+    tonic::include_proto!("kafka_reader_api");
+
+    pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
+        tonic::include_file_descriptor_set!("reader_service_descriptor");
+}
+
 #[derive(Debug)]
 pub struct KafkaService;
 
 #[tonic::async_trait]
-impl proto::KafkaService for KafkaService {
+impl proto::kafka_service_server::KafkaService for KafkaService {
     type ReadMessagesStream =
         Box<dyn Stream<Item = Result<ReadMessagesQueryResponse, Status>> + Send + Unpin>;
 

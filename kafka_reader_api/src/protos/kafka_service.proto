@@ -142,10 +142,22 @@ message MessageFormatDto {
   message ProtoFormatDto {
     oneof decode_way {
       SingleProtoFileDto raw_proto_file = 1;
+      ProtoTarArchiveFilesDto tar_archive = 2;
     }
     message SingleProtoFileDto {
       string message_type_name = 1;
       string file = 2;
+    }
+    message ProtoTarArchiveFilesDto {
+      BytesOrBase64DataDto data = 1;
+      string target_file_path = 2;
+      string message_type_name = 3;
+    }
+    message BytesOrBase64DataDto {
+      oneof data {
+        bytes data_bytes = 1;
+        string data_base64 = 2;
+      }
     }
   }
 }
