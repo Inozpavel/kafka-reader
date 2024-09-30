@@ -1,13 +1,16 @@
 use crate::api::converters::shared::{
     proto_connection_setting_to_internal, proto_format_to_format,
 };
+use crate::api::kafka_service::proto::produce_messages::{
+    produce_messages_command_response, DeliveryResultDto, ProduceMessageDto,
+    ProduceMessagesCommand, ProduceMessagesCommandResponse,
+};
+use crate::api::kafka_service::proto::ErrorDto;
 use anyhow::Context;
 use kafka_reader::commands::produce_messages::{
     ProduceMessage, ProduceMessagesCommandInternal, ProduceMessagesCommandInternalResponse,
 };
 use rayon::prelude::*;
-use crate::api::kafka_service::proto::ErrorDto;
-use crate::api::kafka_service::proto::produce_messages::{produce_messages_command_response, DeliveryResultDto, ProduceMessageDto, ProduceMessagesCommand, ProduceMessagesCommandResponse};
 
 pub fn proto_produce_messages_to_internal(
     model: ProduceMessagesCommand,

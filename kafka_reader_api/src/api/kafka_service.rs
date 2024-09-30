@@ -34,8 +34,8 @@ use tonic::{Request, Response, Status};
 use tracing::debug;
 
 pub mod proto {
-
     pub use read_messages::*;
+
     tonic::include_proto!("kafka_reader_api");
 
     pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =

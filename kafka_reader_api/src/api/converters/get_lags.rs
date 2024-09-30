@@ -1,8 +1,13 @@
 use crate::api::converters::shared::proto_connection_setting_to_internal;
-use tonic::Status;
-use kafka_reader::queries::get_topic_lags::{GetTopicLagsQueryInternal, GroupTopicLags, ReadLagsResult};
+use crate::api::kafka_service::proto::get_topic_lags::{
+    get_topic_lags_query_response, GetTopicLagsQuery, GetTopicLagsQueryResponse, GroupLagsDto,
+    GroupTopicLagDto, GroupTopicPartitionLagDto,
+};
 use crate::api::kafka_service::proto::ErrorDto;
-use crate::api::kafka_service::proto::get_topic_lags::{get_topic_lags_query_response, GetTopicLagsQuery, GetTopicLagsQueryResponse, GroupLagsDto, GroupTopicLagDto, GroupTopicPartitionLagDto};
+use kafka_reader::queries::get_topic_lags::{
+    GetTopicLagsQueryInternal, GroupTopicLags, ReadLagsResult,
+};
+use tonic::Status;
 
 pub fn proto_get_lags_to_internal(
     model: GetTopicLagsQuery,

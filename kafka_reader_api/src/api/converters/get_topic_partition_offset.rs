@@ -1,6 +1,11 @@
-use kafka_reader::queries::get_topic_partitions_with_offsets::{GetTopicPartitionsWithOffsetsQueryInternal, GetTopicPartitionsWithOffsetsQueryResponseInternal};
 use crate::api::converters::proto_connection_setting_to_internal;
-use crate::api::kafka_service::proto::get_topic_partitions_with_offsets::{GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse, PartitionDataWatermarksDto};
+use crate::api::kafka_service::proto::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQuery, GetTopicPartitionsWithOffsetsQueryResponse,
+    PartitionDataWatermarksDto,
+};
+use kafka_reader::queries::get_topic_partitions_with_offsets::{
+    GetTopicPartitionsWithOffsetsQueryInternal, GetTopicPartitionsWithOffsetsQueryResponseInternal,
+};
 
 pub fn proto_get_topic_partition_offsets_internal(
     model: GetTopicPartitionsWithOffsetsQuery,

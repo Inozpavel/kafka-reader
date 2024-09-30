@@ -1,9 +1,12 @@
-use rayon::prelude::*;
+use crate::api::converters::shared::proto_connection_setting_to_internal;
+use crate::api::kafka_service::proto::get_cluster_metadata::{
+    GetClusterMetadataQuery, GetClusterMetadataQueryResponse, KafkaBrokerMetadataDto,
+    KafkaTopicMetadataDto,
+};
 use kafka_reader::queries::get_cluster_metadata::{
     GetClusterMetadataQueryInternal, GetClusterMetadataQueryInternalResponse,
 };
-use crate::api::converters::shared::proto_connection_setting_to_internal;
-use crate::api::kafka_service::proto::get_cluster_metadata::{GetClusterMetadataQuery, GetClusterMetadataQueryResponse, KafkaBrokerMetadataDto, KafkaTopicMetadataDto};
+use rayon::prelude::*;
 
 pub fn proto_get_cluster_metadata_to_internal(
     model: GetClusterMetadataQuery,
