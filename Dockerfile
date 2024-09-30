@@ -4,6 +4,8 @@ RUN apt update && yes | apt install protobuf-compiler cmake
 
 WORKDIR /src
 
+RUN cargo fetch
+
 COPY . .
 
 RUN cargo build --release
