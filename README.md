@@ -5,7 +5,7 @@ Web api service for debugging, reading, producing and filtering kafka messages i
 ## Features
 
 Service has grpc api with streaming endpoint for
-messages ([proto file contract](kafka_reader_api/src/protos/reader_service.proto)). Grpc service supports
+messages ([proto file contract](kafka_reader_api/src/protos/kafka_service.proto)). Grpc service supports
 reflection
 
 Supported message decode formats, separated for key and body:

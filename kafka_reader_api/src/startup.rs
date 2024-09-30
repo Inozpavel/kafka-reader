@@ -1,5 +1,6 @@
+use crate::api::kafka_service::proto::kafka_service_server::KafkaServiceServer;
+use crate::api::kafka_service::KafkaService;
 use crate::app_config::AppConfig;
-use crate::kafka_api::{proto, KafkaService};
 use anyhow::Context;
 use tonic::body::BoxBody;
 use tonic::transport::Server;
@@ -13,7 +14,7 @@ pub async fn run_until_stopped(config: AppConfig) -> Result<(), anyhow::Error> {
         .context("While parsing socket address")?;
 
     let service = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(crate::api::kafka_service::proto::FILE_DESCRIPTOR_SET)
         .build_v1alpha()
         .context("While building reflection service")?;
 
@@ -32,7 +33,7 @@ pub async fn run_until_stopped(config: AppConfig) -> Result<(), anyhow::Error> {
             }),
         )
         .add_service(service)
-        .add_service(proto::KafkaServiceServer::new(KafkaService))
+        .add_service(KafkaServiceServer::new(KafkaService))
         .serve(address)
         .await
         .context("While listening service address")?;
