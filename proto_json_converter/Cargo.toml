@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bytes = "1.7.1"
+bytes = "1.7.2"
 protobuf = { version = "3.6.0" }
 protobuf-json-mapping = "3.6.0"
 protobuf-parse = "3.6.0"
 anyhow = "1.0.89"
-tempfile = "3.12.0"
+tempfile = "3.13.0"
 tokio = { version = "1.40.0", features = ["fs", "sync"] }
 tracing = "0.1.40"
 uuid = { version = "1.10.0", features = ["v4"] }

@@ -4,21 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.88"
+anyhow = "1.0.89"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros", "sync"] }
 tokio-util = "0.7.12"
 tokio-stream = "0.1.16"
-tonic = { version = "0.12.2" }
-tonic-reflection = "0.12.2"
-prost = { version = "0.13.2" }
-prost-types = { version = "0.13.2" }
+tonic = { version = "0.12.3" }
+tonic-reflection = "0.12.3"
+prost = { version = "0.13.3" }
+prost-types = { version = "0.13.3" }
 config = "0.14.0"
 serde = { version = "1.0.210", features = ["derive"] }
 chrono = "0.4.38"
 pin-project-lite = "0.2.14"
-regex = "1.10.6"
+regex = "1.11.0"
 rayon = "1.10.0"
 http = "1.1.0"
 tower-http = { version = "0.6.1", features = ["trace", "propagate-header", "request-id"] }
@@ -28,10 +28,10 @@ base64 = "0.22.1"
 kafka_reader = { path = "../kafka_reader" }
 
 [build-dependencies]
-tonic-build = "0.12.2"
+tonic-build = "0.12.3"
 
 [dev-dependencies]
-tonic = "0.12.2"
-prost-types = "0.13.2"
-prost = "0.13.2"
-bytes = "1.7.1"
+tonic = "0.12.3"
+prost-types = "0.13.3"
+prost = "0.13.3"
+bytes = "1.7.2"
