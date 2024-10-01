@@ -71,10 +71,11 @@ cd vcpkg
 .\bootstrap-vcpkg.bat
 
 # Add vcpkg.exe to system PATH variable
-
 vcpkg install librdkafka
 vcpkg install zlib
 vcpkg install --triplet=x64-windows-static openssl
+
+set VCPKG_ROOT=c:\path\to\vcpkg\installed
 
 vcpkg integrate install
 
