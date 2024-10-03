@@ -21,8 +21,11 @@ impl TryFrom<&ConnectionSettings> for ClientConfig {
         let brokers_string = value.brokers.join(",");
         config
             .set("bootstrap.servers", brokers_string)
-            // .set("debug", "all")
             .set("security.protocol", value.security_protocol.to_string());
+
+        if let Ok(value) = std::env::var("RD_KAFKA_DEBUG") {
+            config.set("debug", value);
+        }
 
         Ok(config)
     }

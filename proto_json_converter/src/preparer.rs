@@ -57,9 +57,8 @@ impl ProtoDescriptorPreparer {
                 PathBuf::from(&single_file_path)
             }
             InputProtoFiles::TarArchive(input_archive) => {
-                let vec = input_archive.archive_bytes.to_vec();
-                let c = Cursor::new(vec);
-                let mut archive = Archive::new(c);
+                let cursor = Cursor::new(input_archive.archive_bytes.as_slice());
+                let mut archive = Archive::new(cursor);
 
                 let entries = archive.entries().context("While getting archive entries")?;
 
@@ -131,7 +130,7 @@ impl ProtoDescriptorPreparer {
 
         let files = file_descriptor_protos
             .into_iter()
-            .map(|x| FileDescriptor::new_dynamic(x, &includes.clone()))
+            .map(|x| FileDescriptor::new_dynamic(x, &includes))
             .collect::<Result<Vec<_>, _>>()
             .context("While mapping files")?;
 

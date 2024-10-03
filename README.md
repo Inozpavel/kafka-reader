@@ -58,6 +58,8 @@ Environment variables:
 `APP__HOST` - listener ip
 `APP__PORT` - listener port
 `RUST_LOG` = log level, format: https://docs.rs/env_logger/latest/env_logger/#enabling-logging
+`RD_KAFKA_DEBUG` - debug value for librdkafka. For values
+see [official docs](https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md)
 
 ## Build from source
 
