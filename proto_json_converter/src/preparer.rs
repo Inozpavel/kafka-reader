@@ -49,7 +49,7 @@ impl ProtoDescriptorPreparer {
 
         let file_path: PathBuf = match &self.input_files {
             InputProtoFiles::SingleFile(file) => {
-                let single_file_path = format!("{}/message.proto", dir_path);
+                let single_file_path = format!("{}/message.proto", &dir_path);
                 tokio::fs::write(&single_file_path, file.as_bytes())
                     .await
                     .context("While filling temp file with proto")?;
@@ -77,7 +77,7 @@ impl ProtoDescriptorPreparer {
                     let archive_file_path = entry.path().context("While getting entry path")?;
                     let result_file_path = format!(
                         "{}/{}",
-                        dir_path,
+                        &dir_path,
                         archive_file_path
                             .as_os_str()
                             .to_str()
