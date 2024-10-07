@@ -49,7 +49,7 @@ impl ProtoDescriptorPreparer {
 
         let file_path: PathBuf = match &self.input_files {
             InputProtoFiles::SingleFile(file) => {
-                let single_file_path = format!("{}/message.proto", dir_path);
+                let single_file_path = format!("{}/message.proto", &dir_path);
                 tokio::fs::write(&single_file_path, file.as_bytes())
                     .await
                     .context("While filling temp file with proto")?;
@@ -57,9 +57,8 @@ impl ProtoDescriptorPreparer {
                 PathBuf::from(&single_file_path)
             }
             InputProtoFiles::TarArchive(input_archive) => {
-                let vec = input_archive.archive_bytes.to_vec();
-                let c = Cursor::new(vec);
-                let mut archive = Archive::new(c);
+                let cursor = Cursor::new(input_archive.archive_bytes.as_slice());
+                let mut archive = Archive::new(cursor);
 
                 let entries = archive.entries().context("While getting archive entries")?;
 
@@ -78,7 +77,7 @@ impl ProtoDescriptorPreparer {
                     let archive_file_path = entry.path().context("While getting entry path")?;
                     let result_file_path = format!(
                         "{}/{}",
-                        dir_path,
+                        &dir_path,
                         archive_file_path
                             .as_os_str()
                             .to_str()
@@ -131,7 +130,7 @@ impl ProtoDescriptorPreparer {
 
         let files = file_descriptor_protos
             .into_iter()
-            .map(|x| FileDescriptor::new_dynamic(x, &includes.clone()))
+            .map(|x| FileDescriptor::new_dynamic(x, &includes))
             .collect::<Result<Vec<_>, _>>()
             .context("While mapping files")?;
 

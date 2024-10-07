@@ -1,19 +1,22 @@
 use crate::ProtoDescriptorPreparer;
 use anyhow::{bail, Context};
-use protobuf::descriptor::FileDescriptorProto;
+use protobuf::reflect::FileDescriptor;
 use protobuf::MessageDyn;
 use protobuf_json_mapping::{parse_dyn_from_str, PrintOptions};
+use tracing::{debug, Level};
 
 pub fn proto_bytes_to_json_string(
     bytes: &[u8],
     message_type_name: &str,
     descriptor_preparer: &ProtoDescriptorPreparer,
 ) -> Result<String, anyhow::Error> {
-    let Some(_) = descriptor_preparer.file_descriptor() else {
+    let Some(descriptor) = descriptor_preparer.file_descriptor() else {
         bail!("ProtoDescriptorPreparer wasn't initialized")
     };
-    // let m = _get_messages_from_file(&file_descriptor_proto);
-    // eprintln!("Messages: {:?}", m);
+    if tracing::enabled!(Level::TRACE) {
+        let messages = get_messages_from_file(descriptor);
+        debug!("Messages in file: {:?}", messages);
+    }
 
     let Some(message) = descriptor_preparer
         .file_descriptor()
@@ -65,11 +68,6 @@ fn proto_message_to_json_string(message: &dyn MessageDyn) -> Result<String, anyh
     Ok(json)
 }
 
-// TODO: remove in future
-fn _get_messages_from_file(file_proto: &FileDescriptorProto) -> Vec<String> {
-    file_proto
-        .message_type
-        .iter()
-        .filter_map(|x| x.name.to_owned())
-        .collect()
+fn get_messages_from_file(file_proto: &FileDescriptor) -> Vec<String> {
+    file_proto.messages().map(|x| x.name().to_owned()).collect()
 }
