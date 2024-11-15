@@ -152,6 +152,11 @@ message MessageFormatDto {
       BytesOrBase64DataDto data = 1;
       string target_file_path = 2;
       string message_type_name = 3;
+      ArchiveDecompressionDto decompression = 4;
+    }
+    enum ArchiveDecompressionDto {
+      None = 0;
+      Gzip = 1;
     }
     message BytesOrBase64DataDto {
       oneof data {
