@@ -850,6 +850,7 @@ dependencies = [
  "pin-project-lite",
  "prost",
  "prost-types",
+ "proto_json_converter",
  "rayon",
  "regex",
  "serde",
@@ -1303,6 +1304,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
+ "flate2",
  "protobuf",
  "protobuf-json-mapping",
  "protobuf-parse",

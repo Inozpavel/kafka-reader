@@ -12,6 +12,8 @@ use kafka_reader::consumer::SecurityProtocol;
 use kafka_reader::queries::read_messages::{
     Format, ProtoTarArchive, ProtobufDecodeWay, SingleProtoFile,
 };
+use proto_json_converter::ArchiveDecompression;
+use crate::api::kafka_service::proto::message_format_dto::proto_format_dto::ArchiveDecompressionDto;
 use crate::api::kafka_service::proto::message_format_dto::proto_format_dto::bytes_or_base64_data_dto::Data;
 
 pub fn proto_connection_setting_to_internal(
@@ -66,18 +68,28 @@ pub fn proto_format_to_format(
                     }))
                 }
                 proto_format_dto::DecodeWay::TarArchive(tar_archive) => {
+                    let archive_bytes = match tar_archive.data.and_then(|x| x.data) {
+                        None => bail!("Archive data can't be null"),
+                        Some(data) => match data {
+                            Data::DataBytes(bytes) => bytes,
+                            Data::DataBase64(base64) => BASE64_STANDARD
+                                .decode(base64)
+                                .context("While decoding base 64 archive bytes")?,
+                        },
+                    };
+
+                    let decompression = ArchiveDecompressionDto::try_from(tar_archive.decompression).ok().and_then(|x| {
+                        match x {
+                            ArchiveDecompressionDto::None => None,
+                            ArchiveDecompressionDto::Gzip => Some(ArchiveDecompression::Gzip)
+                        }
+                    });
+
                     Format::Protobuf(ProtobufDecodeWay::TarArchive(ProtoTarArchive {
                         target_file_path: tar_archive.target_file_path,
-                        archive_bytes: match tar_archive.data.and_then(|x| x.data) {
-                            None => bail!("Archive data can't be null"),
-                            Some(data) => match data {
-                                Data::DataBytes(bytes) => bytes,
-                                Data::DataBase64(base64) => BASE64_STANDARD
-                                    .decode(base64)
-                                    .context("While decoding base 64 archive bytes")?,
-                            },
-                        },
                         message_type_name: tar_archive.message_type_name,
+                        archive_bytes,
+                        decompression,
                     }))
                 }
             }

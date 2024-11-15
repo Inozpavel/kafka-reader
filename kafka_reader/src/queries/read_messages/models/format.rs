@@ -1,3 +1,5 @@
+use proto_json_converter::ArchiveDecompression;
+
 #[derive(Debug)]
 pub enum Format {
     String,
@@ -23,4 +25,6 @@ pub struct ProtoTarArchive {
     pub message_type_name: String,
     pub archive_bytes: Vec<u8>,
     pub target_file_path: String,
+    pub decompression: Option<ArchiveDecompression>,
+
 }

@@ -1,9 +1,10 @@
 use anyhow::{bail, Context};
 use protobuf::reflect::FileDescriptor;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
+use flate2::read::GzDecoder;
 use tar::Archive;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 use uuid::Uuid;
 
 pub struct ProtoDescriptorPreparer {
@@ -19,6 +20,12 @@ pub enum InputProtoFiles {
 pub struct InputTarArchive {
     pub archive_bytes: Vec<u8>,
     pub target_archive_file_path: String,
+    pub decompression: Option<ArchiveDecompression>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum ArchiveDecompression {
+    Gzip
 }
 
 impl ProtoDescriptorPreparer {
@@ -57,9 +64,13 @@ impl ProtoDescriptorPreparer {
                 PathBuf::from(&single_file_path)
             }
             InputProtoFiles::TarArchive(input_archive) => {
+                let decompression = input_archive.decompression;
                 let cursor = Cursor::new(input_archive.archive_bytes.as_slice());
-                let mut archive = Archive::new(cursor);
-
+                let reader: Box<dyn Read> = match decompression {
+                    None => Box::new(cursor),
+                    Some(ArchiveDecompression::Gzip) => Box::new(GzDecoder::new(cursor))
+                };
+                let mut archive = Archive::new(reader);
                 let entries = archive.entries().context("While getting archive entries")?;
 
                 let mut requested_file_path = None;
@@ -75,17 +86,21 @@ impl ProtoDescriptorPreparer {
                         .context("While reading file bytes")?;
 
                     let archive_file_path = entry.path().context("While getting entry path")?;
-                    let result_file_path = format!(
+                    let result_file_path = PathBuf::from(format!(
                         "{}/{}",
                         &dir_path,
                         archive_file_path
                             .as_os_str()
                             .to_str()
                             .context("Invalid utf-8 file path")?
-                    );
+                    ));
+                    let mut result_dir_path = result_file_path.clone();
+                    result_dir_path.pop();
 
-                    std::fs::write(&result_file_path, &bytes)
-                        .context("While writing file bytes")?;
+                    debug!("Path: {:?}", &result_file_path);
+                    std::fs::create_dir_all(&result_dir_path).context("While creating dir for certain archive file")?;
+                    let mut file = std::fs::File::create(&result_file_path).context("While creating file from archive")?;
+                    file.write_all(&bytes).context("While writing file bytes")?;
 
                     if archive_file_path == target_file_path {
                         requested_file_path = Some(result_file_path);
@@ -96,7 +111,7 @@ impl ProtoDescriptorPreparer {
                     bail!("Requested file wasn't found in archive");
                 };
 
-                PathBuf::from(requested_file_path)
+                requested_file_path
             }
         };
         let path_in_dir = file_path.strip_prefix("messages/")?;

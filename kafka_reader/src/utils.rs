@@ -42,6 +42,7 @@ pub async fn create_holder_from_tar(
     let input_files = InputProtoFiles::TarArchive(InputTarArchive {
         target_archive_file_path: archive.target_file_path.clone(),
         archive_bytes: archive.archive_bytes.clone(),
+        decompression: archive.decompression,
     });
     let mut new_descriptor_holder = ProtoDescriptorPreparer::new(input_files);
     new_descriptor_holder
