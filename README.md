@@ -64,22 +64,18 @@ see [official docs](https://raw.githubusercontent.com/confluentinc/librdkafka/ma
 ## Build from source
 
 Install rust https://www.rust-lang.org/tools/install
+Install cmake https://cmake.org/
 
 ### Windows
 
 ```bash
 git clone https://github.com/microsoft/vcpkg
 cd vcpkg
-.\bootstrap-vcpkg.bat
+./bootstrap-vcpkg.bat
 
-# Add vcpkg.exe to system PATH variable
-vcpkg install librdkafka
-vcpkg install zlib
 vcpkg install --triplet=x64-windows-static openssl
 
-set VCPKG_ROOT=c:\path\to\vcpkg\installed
-
-vcpkg integrate install
+set OPENSSL_ROOT_DIR=С:\path\to\vcpkg\installed # example C:\vcpkg\installed\x64-windows-static
 
 cargo build --release
 ```
