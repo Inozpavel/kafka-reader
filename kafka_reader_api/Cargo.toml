@@ -24,7 +24,6 @@ http = "1.1.0"
 tower-http = { version = "0.6.1", features = ["trace", "propagate-header", "request-id"] }
 console-subscriber = "0.4.0"
 base64 = "0.22.1"
-
 kafka_reader = { path = "../kafka_reader" }
 proto_json_converter = { path = "../proto_json_converter" }
 

@@ -19,6 +19,7 @@ impl ConsumerWrapper {
         auto_offset_reset: AutoOffsetReset,
     ) -> Result<Self, anyhow::Error> {
         // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
+
         let consumer: StreamConsumer =
             Self::create_common_config(kafka_connection_settings, Some(group))
                 .context("While creating common config")?

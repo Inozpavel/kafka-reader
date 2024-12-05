@@ -26,5 +26,4 @@ pub struct ProtoTarArchive {
     pub archive_bytes: Vec<u8>,
     pub target_file_path: String,
     pub decompression: Option<ArchiveDecompression>,
-
 }

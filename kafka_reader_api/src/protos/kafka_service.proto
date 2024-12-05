@@ -171,9 +171,32 @@ message SecurityProtocolDto {
   oneof protocol {
     PlaintextProtocolDto plaintext = 1;
     SslProtocolDto ssl = 2;
+    SaslPlaintextProtocolDto sasl_plaintext = 3;
+    SaslSslProtocolDto sasl_ssl = 4;
   }
   message PlaintextProtocolDto {};
   message SslProtocolDto {};
+  message SaslPlaintextProtocolDto {
+    SaslMechanismDto sasl_mechanism = 1;
+  };
+  message SaslSslProtocolDto {
+    SaslMechanismDto sasl_mechanism = 1;
+  };
+}
+
+message SaslMechanismDto {
+  oneof mechanism{
+    ConstantTokenDto constant_token = 1;
+    BearerClientCredentialsDto bearer_client_credentials = 2;
+  }
+  message ConstantTokenDto {
+    string token_value = 1;
+  }
+  message BearerClientCredentialsDto {
+    string open_id_configuration_url = 1;
+    string client_id = 2;
+    string client_secret = 3;
+  }
 }
 
 message GetClusterMetadata {

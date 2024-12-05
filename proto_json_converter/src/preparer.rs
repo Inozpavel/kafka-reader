@@ -1,8 +1,8 @@
 use anyhow::{bail, Context};
+use flate2::read::GzDecoder;
 use protobuf::reflect::FileDescriptor;
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
-use flate2::read::GzDecoder;
 use tar::Archive;
 use tracing::{debug, error, trace};
 use uuid::Uuid;
@@ -25,7 +25,7 @@ pub struct InputTarArchive {
 
 #[derive(Debug, Copy, Clone)]
 pub enum ArchiveDecompression {
-    Gzip
+    Gzip,
 }
 
 impl ProtoDescriptorPreparer {
@@ -68,7 +68,7 @@ impl ProtoDescriptorPreparer {
                 let cursor = Cursor::new(input_archive.archive_bytes.as_slice());
                 let reader: Box<dyn Read> = match decompression {
                     None => Box::new(cursor),
-                    Some(ArchiveDecompression::Gzip) => Box::new(GzDecoder::new(cursor))
+                    Some(ArchiveDecompression::Gzip) => Box::new(GzDecoder::new(cursor)),
                 };
                 let mut archive = Archive::new(reader);
                 let entries = archive.entries().context("While getting archive entries")?;
@@ -98,8 +98,10 @@ impl ProtoDescriptorPreparer {
                     result_dir_path.pop();
 
                     debug!("Path: {:?}", &result_file_path);
-                    std::fs::create_dir_all(&result_dir_path).context("While creating dir for certain archive file")?;
-                    let mut file = std::fs::File::create(&result_file_path).context("While creating file from archive")?;
+                    std::fs::create_dir_all(&result_dir_path)
+                        .context("While creating dir for certain archive file")?;
+                    let mut file = std::fs::File::create(&result_file_path)
+                        .context("While creating file from archive")?;
                     file.write_all(&bytes).context("While writing file bytes")?;
 
                     if archive_file_path == target_file_path {
