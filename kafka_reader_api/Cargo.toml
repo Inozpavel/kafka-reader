@@ -4,25 +4,25 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.89"
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros", "sync"] }
-tokio-util = "0.7.12"
-tokio-stream = "0.1.16"
+anyhow = "1.0.94"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "sync"] }
+tokio-util = "0.7.13"
+tokio-stream = "0.1.17"
 tonic = { version = "0.12.3" }
 tonic-reflection = "0.12.3"
-prost = { version = "0.13.3" }
-prost-types = { version = "0.13.3" }
-config = "0.14.0"
-serde = { version = "1.0.210", features = ["derive"] }
+prost = { version = "0.13.4" }
+prost-types = { version = "0.13.4" }
+config = "0.14.1"
+serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.38"
-pin-project-lite = "0.2.14"
-regex = "1.11.0"
+pin-project-lite = "0.2.15"
+regex = "1.11.1"
 rayon = "1.10.0"
-http = "1.1.0"
-tower-http = { version = "0.6.1", features = ["trace", "propagate-header", "request-id"] }
-console-subscriber = "0.4.0"
+http = "1.2.0"
+tower-http = { version = "0.6.2", features = ["trace", "propagate-header", "request-id"] }
+console-subscriber = "0.4.1"
 base64 = "0.22.1"
 kafka_reader = { path = "../kafka_reader" }
 proto_json_converter = { path = "../proto_json_converter" }
@@ -32,6 +32,6 @@ tonic-build = "0.12.3"
 
 [dev-dependencies]
 tonic = "0.12.3"
-prost-types = "0.13.3"
-prost = "0.13.3"
-bytes = "1.7.2"
+prost-types = "0.13.4"
+prost = "0.13.4"
+bytes = "1.9.0"

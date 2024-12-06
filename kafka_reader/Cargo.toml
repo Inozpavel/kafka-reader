@@ -4,17 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bytes = "1.7.2"
-anyhow = "1.0.89"
-tracing = "0.1.40"
-tokio = { version = "1.40.0", features = ["rt-multi-thread", "fs", "macros", "rt"] }
-tokio-util = "0.7.12"
+bytes = "1.9.0"
+anyhow = "1.0.94"
+tracing = "0.1.41"
+tokio = { version = "1.42.0", features = ["rt-multi-thread", "fs", "macros", "rt"] }
+tokio-util = "0.7.13"
 rdkafka = { version = "0.37.0", features = ["cmake-build", "tracing", "ssl"] }
 getset = "0.1.3"
 chrono = "0.4.38"
-regex = "1.11.0"
+regex = "1.11.1"
 base64 = "0.22.1"
-uuid = { version = "1.10.0", features = ["v7"] }
+uuid = { version = "1.11.0", features = ["v7"] }
 reqwest = { version = "0.12.9", features = ["json"] }
 
 proto_json_converter = { path = "../proto_json_converter" }
