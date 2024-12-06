@@ -33,7 +33,9 @@ fn sasl_mechanism_to_token_provider(
     sasl_mechanism: &SaslMechanism,
 ) -> Box<dyn BearerTokenProvider> {
     match sasl_mechanism {
-        SaslMechanism::ConstantToken(token) => Box::new(ConstantBearerTokenProvider(token.clone())),
+        SaslMechanism::ConstantToken(token) => {
+            Box::new(ConstantBearerTokenProvider::new(token.clone()))
+        }
         SaslMechanism::BearerClientCredentials(credentials) => Box::new(
             ClientCredentialsBearerTokenProvider::new_with_started_token_refresh(
                 TokenRefreshData {

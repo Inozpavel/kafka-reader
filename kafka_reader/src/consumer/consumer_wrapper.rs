@@ -1,7 +1,7 @@
 use crate::auth::bearer_token_provider::BearerTokenProvider;
-use crate::build_context::build_main_client_context;
 use crate::connection_settings::ConnectionSettings;
 use crate::consumer::{AutoOffsetReset, PartitionOffset};
+use crate::contexts::build_context::build_main_client_context;
 use crate::contexts::token_client_context::MainClientContext;
 use crate::queries::get_topic_partitions_with_offsets::MinMaxOffset;
 use anyhow::Context;

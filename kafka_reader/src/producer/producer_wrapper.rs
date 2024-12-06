@@ -1,7 +1,7 @@
 use crate::auth::bearer_token_provider::BearerTokenProvider;
-use crate::build_context::build_main_client_context;
 use crate::connection_settings::ConnectionSettings;
 use crate::consumer::PartitionOffset;
+use crate::contexts::build_context::build_main_client_context;
 use crate::contexts::token_client_context::MainClientContext;
 use anyhow::{bail, Context};
 use rdkafka::message::{Header, OwnedHeaders};

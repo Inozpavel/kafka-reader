@@ -25,6 +25,7 @@ impl Drop for ClientCredentialsBearerTokenProvider {
         self.token_refresh_cancellation_token.cancel()
     }
 }
+
 impl ClientCredentialsBearerTokenProvider {
     pub fn new(token_refresh_data: TokenRefreshData) -> Self {
         Self {
