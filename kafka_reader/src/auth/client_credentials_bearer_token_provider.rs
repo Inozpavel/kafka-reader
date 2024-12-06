@@ -15,9 +15,9 @@ pub struct ClientCredentialsBearerTokenProvider {
 }
 
 pub struct TokenRefreshData {
-    oidc_url: String,
-    client_id: String,
-    client_secret: String,
+    pub oidc_url: String,
+    pub client_id: String,
+    pub client_secret: String,
 }
 
 impl Drop for ClientCredentialsBearerTokenProvider {

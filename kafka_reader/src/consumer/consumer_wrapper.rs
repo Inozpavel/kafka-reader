@@ -1,5 +1,8 @@
+use crate::auth::bearer_token_provider::BearerTokenProvider;
+use crate::build_context::build_main_client_context;
 use crate::connection_settings::ConnectionSettings;
 use crate::consumer::{AutoOffsetReset, PartitionOffset};
+use crate::contexts::token_client_context::MainClientContext;
 use crate::queries::get_topic_partitions_with_offsets::MinMaxOffset;
 use anyhow::Context;
 use rdkafka::consumer::{Consumer, StreamConsumer};
@@ -8,8 +11,9 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
+// https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
 pub struct ConsumerWrapper {
-    consumer: StreamConsumer,
+    consumer: StreamConsumer<MainClientContext<Box<dyn BearerTokenProvider>>>,
 }
 
 impl ConsumerWrapper {
@@ -18,9 +22,9 @@ impl ConsumerWrapper {
         group: &str,
         auto_offset_reset: AutoOffsetReset,
     ) -> Result<Self, anyhow::Error> {
-        // https://raw.githubusercontent.com/confluentinc/librdkafka/master/CONFIGURATION.md
+        let context = build_main_client_context(kafka_connection_settings);
 
-        let consumer: StreamConsumer =
+        let consumer: StreamConsumer<MainClientContext<Box<dyn BearerTokenProvider>>> =
             Self::create_common_config(kafka_connection_settings, Some(group))
                 .context("While creating common config")?
                 .set("auto.offset.reset", auto_offset_reset.to_string())
@@ -32,7 +36,7 @@ impl ConsumerWrapper {
                 .set("message.max.bytes", "1000000000")
                 .set("receive.message.max.bytes", "2147483647")
                 .set("heartbeat.interval.ms", "1000")
-                .create()?;
+                .create_with_context(context)?;
 
         Ok(Self { consumer })
     }
@@ -41,9 +45,11 @@ impl ConsumerWrapper {
         kafka_connection_settings: &ConnectionSettings,
         group: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let consumer: StreamConsumer = Self::create_common_config(kafka_connection_settings, group)
-            .context("While creating common config")?
-            .create()?;
+        let context = build_main_client_context(kafka_connection_settings);
+        let consumer: StreamConsumer<MainClientContext<Box<dyn BearerTokenProvider>>> =
+            Self::create_common_config(kafka_connection_settings, group)
+                .context("While creating common config")?
+                .create_with_context(context)?;
 
         Ok(Self { consumer })
     }
@@ -163,7 +169,7 @@ impl DerefMut for ConsumerWrapper {
 }
 
 impl Deref for ConsumerWrapper {
-    type Target = StreamConsumer;
+    type Target = StreamConsumer<MainClientContext<Box<dyn BearerTokenProvider>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.consumer

@@ -1,5 +1,8 @@
+use crate::auth::bearer_token_provider::BearerTokenProvider;
+use crate::build_context::build_main_client_context;
 use crate::connection_settings::ConnectionSettings;
 use crate::consumer::PartitionOffset;
+use crate::contexts::token_client_context::MainClientContext;
 use anyhow::{bail, Context};
 use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::{FutureProducer, FutureRecord};
@@ -9,16 +12,18 @@ use std::time::Duration;
 use tracing::error;
 
 pub struct ProducerWrapper {
-    producer: FutureProducer,
+    producer: FutureProducer<MainClientContext<Box<dyn BearerTokenProvider>>>,
 }
 
 impl ProducerWrapper {
     pub fn create(kafka_connection_settings: &ConnectionSettings) -> Result<Self, anyhow::Error> {
         let mut config = ClientConfig::try_from(kafka_connection_settings)?;
-        let producer: FutureProducer = config
+        let context = build_main_client_context(kafka_connection_settings);
+
+        let producer: FutureProducer<MainClientContext<Box<dyn BearerTokenProvider>>> = config
             .set("message.timeout.ms", "5000")
             .set("linger.ms", "0")
-            .create()
+            .create_with_context(context)
             .context("While creating kafka FutureProducer")?;
 
         Ok(Self { producer })
@@ -84,7 +89,7 @@ impl DerefMut for ProducerWrapper {
 }
 
 impl Deref for ProducerWrapper {
-    type Target = FutureProducer;
+    type Target = FutureProducer<MainClientContext<Box<dyn BearerTokenProvider>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.producer

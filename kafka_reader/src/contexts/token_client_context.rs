@@ -4,16 +4,17 @@ use rdkafka::consumer::ConsumerContext;
 use rdkafka::ClientContext;
 use std::error::Error;
 
-pub struct TokenClientContext<T: BearerTokenProvider> {
+pub struct MainClientContext<T> {
     token_provider: T,
 }
 
-impl<T: BearerTokenProvider> TokenClientContext<T> {
+impl<T> MainClientContext<T> {
     pub fn new(token_provider: T) -> Self {
         Self { token_provider }
     }
 }
-impl<T: BearerTokenProvider> ClientContext for TokenClientContext<T> {
+
+impl<T: BearerTokenProvider> ClientContext for MainClientContext<T> {
     fn generate_oauth_token(
         &self,
         _oauthbearer_config: Option<&str>,
@@ -28,4 +29,4 @@ impl<T: BearerTokenProvider> ClientContext for TokenClientContext<T> {
     }
 }
 
-impl<T: BearerTokenProvider> ConsumerContext for TokenClientContext<T> {}
+impl<T: BearerTokenProvider> ConsumerContext for MainClientContext<T> {}
