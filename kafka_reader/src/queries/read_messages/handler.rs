@@ -227,8 +227,8 @@ async fn consume_topic(
     }
 }
 
-async fn convert_message<'a>(
-    message: BorrowedMessage<'a>,
+async fn convert_message(
+    message: BorrowedMessage<'_>,
     key_format: Option<&Format>,
     body_format: Option<&Format>,
     holder: Arc<RwLock<Option<ProtoDescriptorPreparer>>>,
