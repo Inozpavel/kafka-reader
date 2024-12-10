@@ -22,7 +22,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info_span, trace, warn, Instrument};
+use tracing::{debug, error, info_span, trace, warn, Instrument, Span};
 use uuid::Uuid;
 
 type ChannelItem = ReadMessagesQueryInternalResponse;
@@ -89,7 +89,7 @@ pub async fn run_read_messages_to_channel(
             holder,
             cancellation_token,
         )
-        .instrument(info_span!("Consuming topic").or_current());
+        .instrument(Span::current());
         tokio::task::spawn(future);
     }
 
@@ -118,7 +118,7 @@ pub async fn run_read_messages_to_channel(
             }
         }
     }
-    .instrument(info_span!("Updating counters").or_current());
+        .instrument(Span::current());
 
     tokio::task::spawn(counters_future);
 
@@ -156,19 +156,15 @@ async fn consume_topic(
             }
         };
 
-        let Ok(message) = message_result else {
-            let error = message_result.unwrap_err();
-            error!(
-                "Error while reading message from kafka consumer: {:?}",
-                error
-            );
-            let _ = tx
-                .send(ChannelItem::Error(ConsumeError {
-                    error: error.into(),
-                }))
-                .await;
-
-            return;
+        let message = match message_result {
+            Err(e) => {
+                error!("Error while reading message from kafka consumer: {e:?}",);
+                let _ = tx
+                    .send(ChannelItem::Error(ConsumeError { error: e.into() }))
+                    .await;
+                return;
+            }
+            Ok(message) => message,
         };
 
         trace!(
@@ -238,16 +234,18 @@ async fn convert_message(
     let partition_offset = PartitionOffset::new(message.partition(), Some(message.offset()));
 
     let key_result = message.key_view::<[u8]>();
-    let key = message_part_to_string("key", key_result, key_format, &holder)
+    let key = message_part_to_string(key_result, key_format, &holder)
         .await
+        .context("While converting key")
         .map_err(|e| ConvertError {
             error: e,
             partition_offset,
         });
 
     let body_result = message.payload_view::<[u8]>();
-    let body = message_part_to_string("body", body_result, body_format, &holder)
+    let body = message_part_to_string(body_result, body_format, &holder)
         .await
+        .context("While converting body")
         .map_err(|e| ConvertError {
             error: e,
             partition_offset,
@@ -384,7 +382,6 @@ where
 }
 
 async fn message_part_to_string(
-    part_name: &'static str,
     part: Option<Result<&[u8], ()>>,
     format: Option<&Format>,
     descriptor_holder: &RwLock<Option<ProtoDescriptorPreparer>>,
@@ -392,17 +389,11 @@ async fn message_part_to_string(
     let Some(bytes_result) = part else {
         return Ok(None);
     };
-    let Ok(bytes) = bytes_result else {
-        return Err(anyhow!(
-            "Error for viewing {} message bytes {:?}",
-            part_name,
-            bytes_result.unwrap_err()
-        ));
-    };
+    let bytes = bytes_result.map_err(|e| anyhow!("Error for viewing message bytes {e:?}"))?;
 
     let result_string = bytes_to_string(bytes, format, descriptor_holder)
         .await
-        .with_context(|| format!("While converting {} bytes to json string", part_name))?;
+        .context("While converting bytes to json string")?;
 
     Ok(result_string)
 }

@@ -13,7 +13,7 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use tracing::{info_span, warn, Instrument};
+use tracing::{warn, Instrument, Span};
 
 pub async fn produce_messages_to_topic(
     mut request: ProduceMessagesCommandInternal,
@@ -52,7 +52,7 @@ pub async fn produce_messages_to_topic(
                     .await;
             };
         }
-        .instrument(info_span!("Producing message").or_current());
+        .instrument(Span::current());
 
         tokio::task::spawn(future);
     }
